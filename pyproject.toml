@@ -1,0 +1,16 @@
+[project]
+name = "es-capacity"
+version = "0.0.1"
+description = "Reasoning capacity analysis of LLMs post-trained with evolution strategies"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Jaysen Ma" }]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["es_capacity*"]
