@@ -40,7 +40,10 @@ class EvalConfig:
 
 @dataclass
 class ExperimentConfig:
-    """Top-level experiment config for capacity comparison."""
+    """Top-level experiment config for capacity comparison.
+
+    Initial scope: Qwen models (see README).
+    """
 
     base_model: str = ""
     dataset: str = ""

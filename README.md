@@ -12,9 +12,13 @@ This project generalises the pass@k capacity analysis of Yue et al. (NeurIPS 202
 | Full-parameter ES | Qiu et al., *Evolution Strategies at Scale* | [arXiv:2509.24372](https://arxiv.org/abs/2509.24372) |
 | Low-rank ES (EGGROLL) | Sarkar et al., *Evolution Strategies at the Hyperscale* | [arXiv:2511.16652](https://arxiv.org/abs/2511.16652) |
 
+## Models
+
+We start with **Qwen** models, the shared backbone across Yue and Qiu. Other families (e.g. Llama, RWKV in HyperscaleES) are out of scope for the initial experiments.
+
 ## Method (high level)
 
-1. Start from a base LLM.
+1. Start from a Qwen base LLM.
 2. Post-train with Qiu-style full-parameter ES and Sarkar EGGROLL on verifiable reasoning tasks.
 3. Measure reasoning coverage with pass@k at large \(k\) for base vs ES-trained models.
 4. Compare capacity curves and sampling-efficiency gap \(\Delta_{\mathrm{SE}}\) (Yue et al.).
