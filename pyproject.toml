@@ -6,6 +6,23 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Jaysen Ma" }]
+dependencies = [
+    "numpy",
+    "torch",
+    "transformers",
+    "accelerate",
+    "datasets",
+    "sympy",
+    "tqdm",
+    "regex",
+    "word2number",
+    "latex2sympy2",
+    "openai",
+]
+
+[project.optional-dependencies]
+vllm = ["vllm"]
+dev = ["ipython"]
 
 [build-system]
 requires = ["setuptools>=61"]

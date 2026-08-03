@@ -1,0 +1,41 @@
+# Copy to config.toml and edit for your machine:
+#   cp config.sample.toml config.toml
+#
+# config.toml is gitignored. Scripts load it from the repo root
+# (or from $ES_CAPACITY_CONFIG).
+
+[paths]
+# Directory that contains HF model folders (mounted into vLLM as /models).
+models_dir = "/path/to/models"
+# Shared project virtualenv (optional; used by docs / agent guidance).
+venv = "/path/to/.venv"
+
+[models.base]
+# Basename under models_dir, or an absolute path.
+path = "Qwen2.5-7B"
+served_name = "qwen2.5-7b"
+
+[models.instruct]
+path = "Qwen2.5-7B-Instruct"
+served_name = "qwen2.5-7b-instruct"
+
+[vllm]
+image = "vllm/vllm-openai:gemma4-cu130"
+port = 8000
+container_name = "es-capacity-vllm"
+gpu_memory_utilization = 0.85
+max_model_len = 6144
+max_num_seqs = 768
+base_url = "http://127.0.0.1:8000/v1"
+api_key = "EMPTY"
+
+[eval]
+backend = "openai"
+ks = [4, 16, 64]
+n_samples = 64
+temperature = 0.6
+top_p = 0.95
+max_new_tokens = 4096
+prompt_batch_size = 30
+seed = 0
+output_dir = "outputs/aime24_7b_base_vs_instruct"

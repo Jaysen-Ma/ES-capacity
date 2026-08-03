@@ -6,34 +6,79 @@ Use the unbiased estimator over n ≥ k samples with c correct.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
+
+import numpy as np
+
+from es_capacity.reward import verify
 
 
 def estimate_pass_at_k(n: int, c: int, k: int) -> float:
     """Unbiased pass@k estimator for one problem.
 
-    Given n samples of which c are correct, estimate Prob[at least one
-    correct in k draws] without replacement bias.
-
-    # TODO: implement 1 - C(n - c, k) / C(n, k) (with edge cases).
+    Calculates ``1 - C(n - c, k) / C(n, k)`` via the stable product form
+    used by Chen et al. / Yue et al.
     """
-    raise NotImplementedError(f"estimate_pass_at_k(n={n}, c={c}, k={k})")
+    if k <= 0:
+        raise ValueError(f"k must be positive, got {k}")
+    if n < 0 or c < 0:
+        raise ValueError(f"n and c must be non-negative, got n={n}, c={c}")
+    if c > n:
+        raise ValueError(f"c cannot exceed n, got n={n}, c={c}")
+    if k > n:
+        raise ValueError(f"k cannot exceed n, got n={n}, k={k}")
+    if n - c < k:
+        return 1.0
+    return float(1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1)))
+
+
+def passk_from_correct_counts(
+    num_correct: Sequence[int],
+    n_samples: int,
+    ks: Sequence[int],
+) -> dict[int, float]:
+    """Average unbiased pass@k over problems given per-problem correct counts."""
+    if n_samples <= 0:
+        raise ValueError(f"n_samples must be positive, got {n_samples}")
+    for k in ks:
+        if k > n_samples:
+            raise ValueError(f"k={k} exceeds n_samples={n_samples}")
+    out: dict[int, float] = {}
+    for k in ks:
+        vals = [estimate_pass_at_k(n_samples, int(c), int(k)) for c in num_correct]
+        out[int(k)] = float(np.mean(vals)) if vals else 0.0
+    return out
 
 
 def evaluate_passk(
-    model: Any,
+    engine: Any,
     dataset: list[dict[str, Any]],
     ks: list[int],
     *,
     n_samples: int | None = None,
     gen_kwargs: dict[str, Any] | None = None,
+    prompts: list[str] | None = None,
 ) -> dict[int, float]:
-    """Average pass@k over `dataset` for each k in `ks`.
+    """Average pass@k over ``dataset`` for each k in ``ks``.
 
-    Outline:
-      for each problem: sample n completions; count correct via verify
-      return {k: mean_i estimate_pass_at_k(n, c_i, k) for k in ks}
-
-    # TODO: sampling loop, verification, aggregation.
+    Samples ``n_samples`` (default ``max(ks)``) completions per problem.
+    Prefer the CLI script for resume/checkpointing on long AIME runs.
     """
-    raise NotImplementedError("evaluate_passk")
+    from es_capacity.model import generate
+
+    if not ks:
+        raise ValueError("ks must be non-empty")
+    n = n_samples if n_samples is not None else max(ks)
+    if prompts is None:
+        raise ValueError("prompts must be provided (build via es_capacity.data.build_prompt)")
+    if len(prompts) != len(dataset):
+        raise ValueError("prompts and dataset length mismatch")
+
+    kwargs = dict(gen_kwargs or {})
+    completions_per_problem = generate(engine, prompts, n=n, **kwargs)
+
+    num_correct: list[int] = []
+    for example, comps in zip(dataset, completions_per_problem):
+        c = sum(1 for text in comps if verify(example, text))
+        num_correct.append(c)
+    return passk_from_correct_counts(num_correct, n, ks)

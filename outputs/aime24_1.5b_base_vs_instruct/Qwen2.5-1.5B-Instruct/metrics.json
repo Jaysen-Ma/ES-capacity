@@ -1,0 +1,60 @@
+{
+  "model": "/home/zotar/models/Qwen2.5-1.5B-Instruct",
+  "slug": "Qwen2.5-1.5B-Instruct",
+  "n_problems": 30,
+  "n_samples": 64,
+  "ks": [
+    4,
+    16,
+    64
+  ],
+  "pass_at_k": {
+    "4": 0.06670753485600127,
+    "16": 0.16189378263929524,
+    "64": 0.36666666666666664
+  },
+  "num_correct_per_problem": [
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    18,
+    1,
+    9,
+    0,
+    1,
+    3,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    1,
+    3,
+    0,
+    0,
+    0
+  ],
+  "completions_path": "outputs/aime24_1.5b_base_vs_instruct/Qwen2.5-1.5B-Instruct/completions.jsonl",
+  "backend": "openai",
+  "grader": "yue_math",
+  "prompt": "qwen-boxed",
+  "gen": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "max_new_tokens": 4096,
+    "seed": 0,
+    "prompt_batch_size": 30
+  },
+  "timestamp_utc": "2026-08-03T17:52:14.273789+00:00"
+}
