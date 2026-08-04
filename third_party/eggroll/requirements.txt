@@ -1,0 +1,12 @@
+vllm==0.17.0
+tyro==0.9.35
+wandb==0.23.0
+weave==0.52.33
+peft==0.18.0
+datasets==4.4.1
+gem-llm==0.1.0
+pylatexenc==2.10
+ray==2.51.1
+accelerate==1.11.0
+transformers==4.57.1
+safetensors==0.6.2

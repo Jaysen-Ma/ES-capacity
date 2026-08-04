@@ -1,0 +1,26 @@
+# Copy to config.local.toml and fill in. This file is gitignored when named config.local.toml.
+
+[paths]
+models_dir = "/path/to/models"
+runs_dir = "runs"
+data_dir = "data"
+venv = "/path/to/ES-capacity/.venv"
+
+[huggingface]
+# token = "hf_..."   # optional; only if gated models need it
+
+[models.base]
+path = "Qwen2.5-7B"
+hf_id = "Qwen/Qwen2.5-7B"
+
+[models.instruct]
+path = "Qwen2.5-7B-Instruct"
+hf_id = "Qwen/Qwen2.5-7B-Instruct"
+
+[models.base_1p5b]
+path = "Qwen2.5-1.5B"
+hf_id = "Qwen/Qwen2.5-1.5B"
+
+[models.grpo]
+path = "Qwen-2.5-7B-SimpleRL-Zoo"
+hf_id = "hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo"

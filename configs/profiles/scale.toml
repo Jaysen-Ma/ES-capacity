@@ -1,0 +1,21 @@
+# Scale: extend an existing v1 run by adding shards → n=256.
+# Usage: --profile scale --extend-run <existing_run_id>
+# Only shards beyond those already complete are generated.
+
+[profile]
+name = "scale"
+model_key = "base"
+dataset = "minerva_math"
+num_problems = -1
+shard_size = 16
+num_shards = 16
+# n = 256
+
+[sampling]
+temperature = 0.6
+top_p = 0.95
+max_new_tokens = 4096
+template = "qwen-boxed"
+
+[eval]
+ks = [1, 2, 4, 8, 16, 32, 64, 128, 256]

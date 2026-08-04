@@ -1,0 +1,19 @@
+# v1 correctness gate: full Minerva, n=64.
+
+[profile]
+name = "v1"
+model_key = "base"
+dataset = "minerva_math"
+num_problems = -1          # all
+shard_size = 16
+num_shards = 4
+# n = 64
+
+[sampling]
+temperature = 0.6
+top_p = 0.95
+max_new_tokens = 4096
+template = "qwen-boxed"
+
+[eval]
+ks = [1, 2, 4, 8, 16, 32, 64]

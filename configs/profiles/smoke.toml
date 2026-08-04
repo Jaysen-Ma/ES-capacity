@@ -1,0 +1,19 @@
+# Smoke: minutes. Gate every code change.
+
+[profile]
+name = "smoke"
+model_key = "base_1p5b"
+dataset = "minerva_math"
+num_problems = 8
+shard_size = 4
+num_shards = 1
+# n = shard_size * num_shards = 4
+
+[sampling]
+temperature = 0.6
+top_p = 0.95
+max_new_tokens = 2048
+template = "qwen-boxed"
+
+[eval]
+ks = [1, 2, 4]

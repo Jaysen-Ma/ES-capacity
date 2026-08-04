@@ -1,208 +1,162 @@
-"""Experiment and local machine configuration.
-
-Local paths live in ``config.toml`` (gitignored). Copy ``config.sample.toml``
-and edit. Override the path with ``$ES_CAPACITY_CONFIG`` if needed.
-"""
+"""Config merge: machine ← profile ← experiment ← config.local.toml."""
 
 from __future__ import annotations
 
-import argparse
+import hashlib
+import json
 import os
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
-
-if sys.version_info < (3, 11):
-    raise RuntimeError("es_capacity.config requires Python 3.11+ (tomllib)")
-
-import tomllib
-
-ESMethod = Literal["qiu", "eggroll"]
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG_NAME = "config.toml"
-SAMPLE_CONFIG_NAME = "config.sample.toml"
+
+# No machine name is hardcoded here: a fresh clone defaults to the generic,
+# hardware-agnostic `configs/machine/example.toml` profile. Set this env var
+# (e.g. in your shell rc, not in the repo) to make your own machine profile
+# the default without touching any committed file or CLI invocation.
+DEFAULT_MACHINE_ENV = "ES_CAPACITY_MACHINE"
+DEFAULT_MACHINE = "example"
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    out = dict(base)
+    for k, v in override.items():
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
+            out[k] = _deep_merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def _load_toml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    with path.open("rb") as f:
+        return tomllib.load(f)
+
+
+def config_hash(cfg: dict[str, Any]) -> str:
+    blob = json.dumps(cfg, sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
 @dataclass
-class ESConfig:
-    """Shared ES hyperparameters (algorithm outline only)."""
-
-    method: ESMethod = "qiu"
-    population_size: int = 30
-    noise_scale: float = 0.001  # σ
-    learning_rate: float = 5e-4  # α
-    num_iterations: int = 0
-    # EGGROLL-only: rank of per-member low-rank perturbation A B^T
-    rank: int = 1
-
-
-@dataclass
-class EvalConfig:
-    """pass@k evaluation settings (Yue et al.)."""
-
-    ks: list[int] = field(default_factory=lambda: [1, 2, 4, 8, 16, 32, 64, 128, 256])
-    temperature: float = 0.6
-    top_p: float = 0.95
-    max_new_tokens: int = 4096
-    # Proxy upper bound for Δ_SE vs base pass@k_max
-    k_max: int = 256
-
-
-@dataclass
-class ExperimentConfig:
-    """Top-level experiment config for capacity comparison."""
-
-    base_model: str = ""
-    dataset: str = ""
-    es: ESConfig = field(default_factory=ESConfig)
-    eval: EvalConfig = field(default_factory=EvalConfig)
-
-
-@dataclass(frozen=True)
 class ModelSpec:
-    """One local HF checkpoint + OpenAI served name."""
-
     key: str
     path: Path
-    served_name: str
+    hf_id: str = ""
+
+    @property
+    def resolved(self) -> Path:
+        return self.path
 
 
-@dataclass(frozen=True)
-class LocalConfig:
-    """Parsed ``config.toml`` for paths, models, vLLM, and eval defaults."""
+@dataclass
+class AppConfig:
+    raw: dict[str, Any]
+    repo_root: Path = field(default_factory=lambda: REPO_ROOT)
 
-    path: Path
-    models_dir: Path
-    venv: Path | None
-    models: dict[str, ModelSpec]
-    vllm: dict[str, Any]
-    eval: dict[str, Any]
+    @property
+    def hash(self) -> str:
+        return config_hash(self.raw)
+
+    @property
+    def models_dir(self) -> Path:
+        p = Path(self.raw.get("paths", {}).get("models_dir", "models"))
+        return p if p.is_absolute() else self.repo_root / p
+
+    @property
+    def runs_dir(self) -> Path:
+        p = Path(self.raw.get("paths", {}).get("runs_dir", "runs"))
+        return p if p.is_absolute() else self.repo_root / p
+
+    @property
+    def data_dir(self) -> Path:
+        p = Path(self.raw.get("paths", {}).get("data_dir", "data"))
+        return p if p.is_absolute() else self.repo_root / p
+
+    @property
+    def venv_dir(self) -> Path | None:
+        """Optional `paths.venv` from config.local.toml; None if unset."""
+        raw = self.raw.get("paths", {}).get("venv")
+        if not raw:
+            return None
+        p = Path(raw)
+        return p if p.is_absolute() else self.repo_root / p
 
     def model(self, key: str) -> ModelSpec:
-        if key not in self.models:
-            known = ", ".join(sorted(self.models)) or "(none)"
-            raise KeyError(f"Unknown model key {key!r}; known: {known}")
-        return self.models[key]
+        models = self.raw.get("models", {})
+        if key not in models:
+            raise KeyError(f"Unknown model key {key!r}; known={list(models)}")
+        m = models[key]
+        rel = m.get("path", key)
+        path = Path(rel)
+        if not path.is_absolute():
+            path = self.models_dir / path
+        return ModelSpec(key=key, path=path, hf_id=m.get("hf_id", ""))
 
-    def model_paths(self, keys: list[str] | None = None) -> list[str]:
-        ordered = keys if keys is not None else list(self.models.keys())
-        return [str(self.model(k).path) for k in ordered]
-
-
-def config_path(explicit: str | Path | None = None) -> Path:
-    """Resolve which config file to load."""
-    if explicit is not None:
-        return Path(explicit).expanduser().resolve()
-    env = os.environ.get("ES_CAPACITY_CONFIG")
-    if env:
-        return Path(env).expanduser().resolve()
-    return (REPO_ROOT / DEFAULT_CONFIG_NAME).resolve()
+    def section(self, *keys: str) -> dict[str, Any]:
+        cur: Any = self.raw
+        for k in keys:
+            cur = cur.get(k, {}) if isinstance(cur, dict) else {}
+        return dict(cur) if isinstance(cur, dict) else {}
 
 
-def _resolve_model_path(models_dir: Path, raw: str) -> Path:
-    p = Path(raw).expanduser()
-    if p.is_absolute():
-        return p.resolve()
-    return (models_dir / p).resolve()
-
-
-def load_local_config(explicit: str | Path | None = None, *, required: bool = True) -> LocalConfig:
-    """Load local machine config from TOML."""
-    path = config_path(explicit)
-    if not path.is_file():
-        sample = REPO_ROOT / SAMPLE_CONFIG_NAME
-        msg = (
-            f"Missing config file: {path}\n"
-            f"Copy the sample and edit paths:\n"
-            f"  cp {sample} {REPO_ROOT / DEFAULT_CONFIG_NAME}"
-        )
-        if required:
-            raise FileNotFoundError(msg)
-        raise FileNotFoundError(msg)
-
-    with path.open("rb") as f:
-        raw = tomllib.load(f)
-
-    paths = raw.get("paths") or {}
-    models_dir_raw = str(paths.get("models_dir", "")).strip()
-    if not models_dir_raw:
-        raise ValueError(f"{path}: [paths].models_dir is required")
-    models_dir = Path(models_dir_raw).expanduser().resolve()
-
-    venv_raw = paths.get("venv")
-    venv = Path(str(venv_raw)).expanduser().resolve() if venv_raw else None
-
-    models_raw = raw.get("models") or {}
-    models: dict[str, ModelSpec] = {}
-    for key, spec in models_raw.items():
-        if not isinstance(spec, dict):
-            raise ValueError(f"{path}: [models.{key}] must be a table")
-        rel = spec.get("path")
-        served = spec.get("served_name")
-        if not rel or not served:
-            raise ValueError(f"{path}: [models.{key}] needs path and served_name")
-        models[str(key)] = ModelSpec(
-            key=str(key),
-            path=_resolve_model_path(models_dir, str(rel)),
-            served_name=str(served),
-        )
-
-    return LocalConfig(
-        path=path,
-        models_dir=models_dir,
-        venv=venv,
-        models=models,
-        vllm=dict(raw.get("vllm") or {}),
-        eval=dict(raw.get("eval") or {}),
-    )
-
-
-def dump_config_value(key: str, explicit: str | Path | None = None) -> str:
-    """Print a resolved config field (used by shell scripts)."""
-    cfg = load_local_config(explicit, required=True)
-    if key == "config_path":
-        return str(cfg.path)
-    if key == "models_dir":
-        return str(cfg.models_dir)
-    if key == "venv":
-        if cfg.venv is None:
-            raise KeyError("paths.venv is not set")
-        return str(cfg.venv)
-    if key.startswith("model."):
-        parts = key.split(".")
-        if len(parts) != 3:
-            raise KeyError(f"Expected model.<name>.path|served_name, got {key!r}")
-        _, name, field_name = parts
-        spec = cfg.model(name)
-        if field_name == "path":
-            return str(spec.path)
-        if field_name == "served_name":
-            return spec.served_name
-        raise KeyError(f"Unknown model field {field_name!r}")
-    if key.startswith("vllm."):
-        field_name = key.split(".", 1)[1]
-        if field_name not in cfg.vllm:
-            raise KeyError(f"Unknown vllm field {field_name!r}")
-        return str(cfg.vllm[field_name])
-    if key.startswith("eval."):
-        field_name = key.split(".", 1)[1]
-        if field_name not in cfg.eval:
-            raise KeyError(f"Unknown eval field {field_name!r}")
-        val = cfg.eval[field_name]
-        if isinstance(val, list):
-            return " ".join(str(x) for x in val)
-        return str(val)
-    raise KeyError(f"Unknown config key {key!r}")
+def load_config(
+    *,
+    machine: str | None = None,
+    profile: str | None = None,
+    experiment: str | None = None,
+    local_path: Path | None = None,
+) -> AppConfig:
+    root = REPO_ROOT
+    machine = machine or os.environ.get(DEFAULT_MACHINE_ENV) or DEFAULT_MACHINE
+    cfg: dict[str, Any] = {}
+    cfg = _deep_merge(cfg, _load_toml(root / "configs" / "machine" / f"{machine}.toml"))
+    if profile:
+        cfg = _deep_merge(cfg, _load_toml(root / "configs" / "profiles" / f"{profile}.toml"))
+    if experiment:
+        cfg = _deep_merge(cfg, _load_toml(root / "configs" / "experiments" / f"{experiment}.toml"))
+    local = local_path or (root / "config.local.toml")
+    cfg = _deep_merge(cfg, _load_toml(local))
+    return AppConfig(raw=cfg, repo_root=root)
 
 
 def main(argv: list[str] | None = None) -> None:
-    p = argparse.ArgumentParser(description="Print a value from config.toml")
-    p.add_argument("key", help="e.g. model.base.path, vllm.port, eval.output_dir")
-    p.add_argument("--config", default=None, help="Path to config.toml")
+    import argparse
+    import sys
+
+    p = argparse.ArgumentParser(description="Dump config values")
+    p.add_argument(
+        "--machine",
+        default=None,
+        help=f"Defaults to ${DEFAULT_MACHINE_ENV} env var, else {DEFAULT_MACHINE!r}",
+    )
+    p.add_argument("--profile", default=None)
+    p.add_argument("--experiment", default=None)
+    p.add_argument(
+        "--model-key",
+        default=None,
+        help="Print the resolved absolute path for models.<key> and exit (for use in shell scripts)",
+    )
+    p.add_argument("key", nargs="?", default=None, help="dot.path e.g. paths.models_dir")
     args = p.parse_args(argv)
-    print(dump_config_value(args.key, args.config))
+    cfg = load_config(machine=args.machine, profile=args.profile, experiment=args.experiment)
+    if args.model_key is not None:
+        print(cfg.model(args.model_key).resolved)
+        return
+    if args.key is None:
+        print(json.dumps(cfg.raw, indent=2, default=str))
+        return
+    cur: Any = cfg.raw
+    for part in args.key.split("."):
+        cur = cur[part]
+    if isinstance(cur, (dict, list)):
+        print(json.dumps(cur, indent=2, default=str))
+    else:
+        print(cur)
 
 
 if __name__ == "__main__":

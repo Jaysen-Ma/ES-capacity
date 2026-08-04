@@ -2,75 +2,51 @@
 
 **Does evolution-strategy post-training expand LLM reasoning capacity beyond the base model?**
 
-This project generalises the pass@k capacity analysis of Yue et al. (NeurIPS 2025) from reinforcement learning with verifiable rewards (RLVR) to evolution-strategy (ES) post-training, using two recent ICML 2026 ES methods.
+This project generalises the pass@k capacity analysis of [Yue et al.](https://arxiv.org/abs/2504.13837) from RLVR to evolution-strategy post-training, starting with [EGGROLL](https://arxiv.org/abs/2511.16652) (Sarkar et al.) and keeping [Qiu et al. full-rank ES](https://arxiv.org/abs/2509.24372) as a drop-in.
+
+## v1 arms (Minerva Math)
+
+| Arm | Checkpoint |
+|-----|------------|
+| Base | Qwen2.5-7B |
+| GRPO | [hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo) |
+| ES | EGGROLL trained locally (no public fine-tuned weights) |
+
+Figures: pass@k curves, accuracy histogram, solvable-set coverage.
+
+## Quick start
+
+No hardcoded paths: everything machine- or user-specific lives in a config layer, not in code.
+
+```bash
+cp config.local.example.toml config.local.toml   # fill in models_dir (and venv, optional)
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+# torch / vllm / transformers: install per docs/ENVIRONMENT.md
+
+# Smoke (minutes) — uses configs/machine/example.toml by default:
+python -m es_capacity.cli.eval --profile smoke --arm base
+
+# Aggregate + figures:
+python -m es_capacity.cli.aggregate --run-id <run_id>
+python -m es_capacity.cli.figures --runs <run_a>,<run_b>
+```
+
+Everything reads through `configs/machine/<name>.toml ← configs/profiles/<profile>.toml ← configs/experiments/<exp>.toml ← config.local.toml` (see `AGENTS.md`). To adapt this to your own hardware: copy `configs/machine/example.toml` to `configs/machine/<yours>.toml`, then either pass `--machine <yours>` on every CLI call or `export ES_CAPACITY_MACHINE=<yours>` in your own shell so it becomes the default everywhere without editing any committed file.
+
+## Layout
+
+See [AGENTS.md](AGENTS.md) for conventions. Vendored author code lives under `third_party/` with a `VENDOR.md` and numbered patches.
 
 ## Papers
 
 | Role | Paper | Link |
 |------|-------|------|
-| Capacity analysis (pass@k) | Yue et al. | [arXiv:2504.13837](https://arxiv.org/abs/2504.13837) |
-| Full-parameter ES | Qiu et al. | [arXiv:2509.24372](https://arxiv.org/abs/2509.24372) |
-| Low-rank ES (EGGROLL) | Sarkar et al. | [arXiv:2511.16652](https://arxiv.org/abs/2511.16652) |
+| Capacity analysis | Yue et al. | arXiv:2504.13837 |
+| Low-rank ES (EGGROLL) | Sarkar et al. | arXiv:2511.16652 |
+| Full-parameter ES | Qiu et al. | arXiv:2509.24372 |
+| GRPO baseline | Zeng et al. (SimpleRL-Zoo) | arXiv:2503.18892 |
 
-## Models
+## Licence
 
-Primary checkpoints are named in `config.toml` (default: **Qwen2.5-7B** Base + Instruct). Paths are machine-local — do not hardcode them in scripts.
-
-## Setup
-
-```bash
-cp config.sample.toml config.toml   # then edit paths.models_dir / paths.venv / models.*
-source "$(python -m es_capacity.config venv)/bin/activate"   # or activate your venv first
-pip install -e .
-```
-
-`config.toml` is gitignored. Commit only `config.sample.toml`.
-
-## Fast inference: Docker vLLM (recommended)
-
-Uses the image / port / max-len settings from `[vllm]` in `config.toml`.
-
-```bash
-# Wait until all .safetensors shards are present under the model dir, then:
-bash scripts/serve_qwen_vllm_docker.sh base
-docker logs -f es-capacity-vllm   # wait until Uvicorn is up
-curl -s http://127.0.0.1:8000/v1/models
-```
-
-Evaluate (Yue `qwen-boxed` prompt + Yue `extract_answer`/`math_equal`):
-
-```bash
-python scripts/eval_aime_passk.py --model-key base
-```
-
-Then restart the container for Instruct:
-
-```bash
-bash scripts/serve_qwen_vllm_docker.sh instruct
-python scripts/eval_aime_passk.py --model-key instruct
-```
-
-Eval defaults (`ks`, `n_samples`, `output_dir`, …) also come from `[eval]` in `config.toml`; CLI flags override them.
-
-Smoke test: add `--ks 1 2 --n-samples 2 --max-new-tokens 2048`.
-
-Fallbacks: `--backend vllm` (in-process) or `--backend hf`.
-
-## Package map
-
-```
-config.sample.toml                  Sample local config (committed)
-config.toml                         Local paths / knobs (gitignored)
-scripts/serve_qwen_vllm_docker.sh   Docker vLLM launch
-scripts/eval_aime_passk.py          AIME24 pass@k CLI
-es_capacity/config.py               Config loader + `python -m es_capacity.config`
-es_capacity/model.py                openai / vllm / hf backends
-es_capacity/yue_math/               Vendored Yue parser + grader
-es_capacity/reward.py               Yue extract_answer + math_equal
-es_capacity/data.py                 AIME24 + qwen-boxed prompts
-```
-
-## Status
-
-- **Runnable:** AIME24 pass@k via Docker vLLM OpenAI API + Yue grading.
-- **Stubbed:** ES trainers / post-training pipeline.
+Apache-2.0 (see [LICENSE](LICENSE)). Vendored third-party code retains its upstream licences.

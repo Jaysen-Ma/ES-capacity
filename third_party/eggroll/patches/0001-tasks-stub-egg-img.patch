@@ -1,0 +1,6 @@
+--- a/tasks.py
++++ b/tasks.py
+@@
+-from egg_img import EGG_IMG, CHICK_IMG
++EGG_IMG = ""
++CHICK_IMG = ""

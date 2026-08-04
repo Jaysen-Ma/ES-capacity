@@ -1,0 +1,19 @@
+# Pilot: ~10 min. Real 7B size; measure tokens/sec for extrapolation.
+
+[profile]
+name = "pilot"
+model_key = "base"
+dataset = "minerva_math"
+num_problems = 32
+shard_size = 16
+num_shards = 1
+# n = 16
+
+[sampling]
+temperature = 0.6
+top_p = 0.95
+max_new_tokens = 4096
+template = "qwen-boxed"
+
+[eval]
+ks = [1, 2, 4, 8, 16]
