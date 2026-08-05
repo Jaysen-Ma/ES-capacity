@@ -21,6 +21,7 @@ Minerva data lives at `data/minerva_math/test.jsonl` (SHA256 in that folder), no
 | # | File | Description |
 |---|------|-------------|
 | 0001 | `evaluate.py` | Raise `ProcessPool(max_workers=...)` from 1 to 16 to avoid the grader hang observed 2026-08-03 (single worker + 3s timeout serialised all comparisons). |
+| 0002 | `grader.py` | Fix a second grading deadlock observed 2026-08-04: `math_equal`'s equation-comparison branch (`pred.count("=")==1`) called `symbolic_equal(...)` directly, bypassing `call_with_timeout` even when `timeout=True` — unlike the "symbolic equal with sympy" fallback further down, which was already routed through it. A pathological equation-form completion could hang a grading worker forever with no bound. Also hardened `call_with_timeout` itself: the post-`terminate()` `process.join()` had no timeout, so a child that ignores `SIGTERM` (e.g. stuck deep in a C extension) could still wedge the parent forever; now it joins with a 5s timeout and escalates to `SIGKILL`. |
 
 Our primary grading path is `es_capacity.grade`, which calls `math_equal` / `extract_answer` with its own pool; this patch keeps the upstream `evaluate()` usable if invoked directly.
 
