@@ -51,6 +51,10 @@ def _grade_one(args: tuple[str, str, str]) -> tuple[str, bool]:
         # ProcessPoolExecutor.result(timeout=...) only stops *us* from waiting,
         # it does not kill the stuck worker, so that combination can deadlock
         # ProcessPoolExecutor.shutdown() forever (observed 2026-08-04).
+        # NB: relies on *every* symbolic_equal call site inside grader.py
+        # actually honoring `timeout` — see third_party/yue_math/patches/
+        # 0002-timeout-all-symbolic-equal-paths.patch for a call site that
+        # originally didn't (equation-comparison branch).
         ok = bool(_eq(pred, gold, timeout=True))
     except Exception:
         ok = False
@@ -91,6 +95,36 @@ def grade_completions(
             preds.append(pred)
             scores.append(bool(ok))
     return {"preds": preds, "scores": scores, "c": int(sum(scores))}
+
+
+def grade_flat(
+    completions: list[str],
+    golds: list[str],
+    *,
+    data_name: str = "minerva_math",
+    num_workers: int = 16,
+    timeout_sec: float = 3.0,
+) -> list[bool]:
+    """Grade paired (completion, gold) lists in one pool. Returns correctness.
+
+    Used by the ES training reward, which grades population x prompt_batch
+    completions per step — far more grading than an eval shard, so it must go
+    through the timeout-guarded worker path rather than calling math_equal
+    in-process.
+    """
+    if not completions:
+        return []
+    args = [(c, g, data_name) for c, g in zip(completions, golds)]
+    scores: list[bool] = []
+    with ProcessPoolExecutor(max_workers=num_workers) as pool:
+        futures = [pool.submit(_grade_one, a) for a in args]
+        for fut in futures:
+            try:
+                _, ok = fut.result(timeout=timeout_sec)
+            except (FuturesTimeout, Exception):
+                ok = False
+            scores.append(bool(ok))
+    return scores
 
 
 def grade_batch(
