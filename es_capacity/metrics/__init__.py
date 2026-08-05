@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from itertools import product
 from pathlib import Path
 from typing import Any
 
@@ -58,8 +59,48 @@ def accuracy_histogram(
     }
 
 
+def paper_style_histogram(correct_counts: list[int] | np.ndarray, n: int) -> dict[str, Any]:
+    """Coarse three-bin accuracy histogram: [0,0.33], (0.33,0.66], (0.66,1]."""
+    acc = np.asarray(correct_counts, dtype=np.float64) / max(n, 1)
+    labels = ["[0,0.33]", "(0.33,0.66]", "(0.66,1]"]
+    counts = [
+        int(np.sum(acc <= 0.33)),
+        int(np.sum((acc > 0.33) & (acc <= 0.66))),
+        int(np.sum(acc > 0.66)),
+    ]
+    return {
+        "labels": labels,
+        "counts": counts,
+        "n": n,
+        "num_problems": int(len(acc)),
+        "mean_acc": float(acc.mean()) if len(acc) else 0.0,
+    }
+
+
 def solvable_mask(correct_counts: list[int] | np.ndarray, threshold: int = 1) -> list[bool]:
     return [int(c) >= threshold for c in correct_counts]
+
+
+def solve_combinations(masks: dict[str, list[bool]]) -> list[dict[str, Any]]:
+    """All 2^len(masks) solved/unsolved combinations across arms, in the same
+    all-True-first ordering as a standard capacity-table (e.g. Yue et al. Table 2):
+    counts + percentage of problems falling in each combination."""
+    names = list(masks.keys())
+    n = len(next(iter(masks.values()))) if names else 0
+    rows = []
+    for combo in product([True, False], repeat=len(names)):
+        sel = np.ones(n, dtype=bool)
+        for name, want in zip(names, combo):
+            sel &= np.asarray(masks[name], dtype=bool) == want
+        count = int(sel.sum())
+        rows.append(
+            {
+                "combo": dict(zip(names, combo)),
+                "count": count,
+                "pct": 100.0 * count / n if n else 0.0,
+            }
+        )
+    return rows
 
 
 def coverage_contingency(

@@ -18,6 +18,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.add_argument("--out-dir", default=None)
     p.add_argument("--base-key", default="base")
+    p.add_argument("--benchmark-name", default="Minerva Math")
     p.add_argument("--machine", default=None, help="Default: $ES_CAPACITY_MACHINE or 'example'")
     args = p.parse_args(argv)
     cfg = load_config(machine=args.machine)
@@ -31,7 +32,7 @@ def main(argv: list[str] | None = None) -> None:
         arms[name.strip()] = path
 
     out_dir = Path(args.out_dir) if args.out_dir else cfg.runs_dir / "figures"
-    make_all_figures(arms, out_dir, base_key=args.base_key)
+    make_all_figures(arms, out_dir, base_key=args.base_key, benchmark_name=args.benchmark_name)
     print(f"wrote figures under {out_dir}")
 
 
