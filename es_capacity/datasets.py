@@ -54,6 +54,35 @@ def load_minerva_math(
     return examples
 
 
+def simplerl_path(cfg: AppConfig | None = None, split: str = "math_lvl3to5") -> Path:
+    root = cfg.data_dir if cfg is not None else REPO_ROOT / "data"
+    return root / f"simplerl_{split}" / "train.jsonl"
+
+
+def load_simplerl_math(
+    path: Path | None = None,
+    *,
+    split: str = "math_lvl3to5",
+    num_problems: int | None = None,
+    cfg: AppConfig | None = None,
+) -> list[dict[str, Any]]:
+    """Load the GRPO baseline's training set (see cli.fetch_train_data).
+
+    Each record carries `prompt` verbatim from SimpleRL-Zoo, so ES training
+    sees exactly the prompt GRPO was trained on, and `answer` as the gold
+    string (already extracted upstream — no ground-truth parsing needed).
+    """
+    path = path or simplerl_path(cfg, split)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found — run: python -m es_capacity.cli.fetch_train_data --split {split}"
+        )
+    examples = [json.loads(line) for line in path.open() if line.strip()]
+    if num_problems is not None and num_problems > 0:
+        examples = examples[:num_problems]
+    return examples
+
+
 def build_prompt(example: dict[str, Any], template: str = "qwen-boxed") -> str:
     if template not in TEMPLATES:
         raise KeyError(f"Unknown template {template!r}; known={list(TEMPLATES)}")

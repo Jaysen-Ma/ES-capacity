@@ -16,6 +16,10 @@ experiments/
 *.bin
 *.pt
 
+# Downloaded training data (regenerate: python -m es_capacity.cli.fetch_train_data)
+# README.md + SHA256 stay committed so the download stays verifiable.
+data/simplerl_*/train.jsonl
+
 # Model / HF caches
 .hf_cache/
 .cache/
