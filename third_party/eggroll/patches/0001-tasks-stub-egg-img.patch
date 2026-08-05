@@ -1,6 +1,12 @@
---- a/tasks.py
-+++ b/tasks.py
-@@
+--- tasks.py.bak
++++ tasks.py
+@@ -2,7 +2,8 @@
+ import numpy as np
+ from datasets import load_dataset
+ from typing import List, Optional
 -from egg_img import EGG_IMG, CHICK_IMG
 +EGG_IMG = ""
 +CHICK_IMG = ""
+ 
+ def general_get_fitness(task_obj, generations, truncateds, answer, pass_at_k: bool = False):
+         if len(generations) == 0:

@@ -3,10 +3,15 @@
 | Field | Value |
 |-------|-------|
 | Upstream | https://github.com/Yueyang130/limit-of-RLVR (fork: Jaysen-Ma/limit-of-RLVR) |
-| Local clone | `/home/zotar/jupyterlab/limit-of-RLVR` |
 | Commit | `79c348f4543330bb78b01a5332df09fea2700f70` |
+| Commit date | 2026-07-27 |
+| Vendored on | 2026-08-04 |
 | Paper | arXiv:2504.13837 |
 | Copied from | `math/examples/math_eval/` |
+
+To re-derive this tree, clone upstream, `git checkout 79c348f4`, copy the files listed
+below out of `math/examples/math_eval/`, then apply `patches/*.patch` in numeric order
+(`patch -p0` from this directory).
 
 ## Files copied
 
