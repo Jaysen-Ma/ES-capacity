@@ -49,4 +49,9 @@ See [AGENTS.md](AGENTS.md) for conventions. Vendored author code lives under `th
 
 ## Licence
 
-Apache-2.0 (see [LICENSE](LICENSE)). Vendored third-party code retains its upstream licences.
+Our code is MIT (see [LICENSE](LICENSE)).
+
+Vendored third-party code under `third_party/` keeps its **own** upstream licence, which is
+not MIT and in two cases is more restrictive. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
+for the per-tree terms before reusing anything from there — in particular, `third_party/eggroll/`
+is GPL-3.0 and `third_party/qiu_es/` is restricted to non-commercial use.

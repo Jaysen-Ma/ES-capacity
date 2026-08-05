@@ -35,6 +35,10 @@ runs/                GITIGNORED sharded eval/train outputs
 
 - Author code under `third_party/<name>/` stays **byte-identical** except numbered `patches/*.patch` recorded in `VENDOR.md`.
 - Do not refactor vendored files in place. Divergence must be a visible patch.
+- Patches must be real `diff -u` output that applies and reverses with `patch -p0`, not a prose description of the change. Verify with `patch --dry-run -R -p0 < patches/NNNN-*.patch`.
+- `VENDOR.md` records upstream URL, commit SHA, commit date, and **licence**. Carry the upstream `LICENSE` file into the tree.
+- Vendored code is **not** covered by this repo's MIT licence. `third_party/eggroll/` is GPL-3.0, `third_party/qiu_es/` is non-commercial-only, `third_party/yue_math/` has no licence at all. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) before reusing or adapting any of it.
+- Keep `es_capacity/` free of ported GPL-3.0 source. Implement ES algorithms from the papers, not from `third_party/eggroll/*.py`, so our code can stay MIT.
 - Eval and train rewards must both call the same Yue grader wrapper (`es_capacity.grade`).
 
 ## Sampling artifacts

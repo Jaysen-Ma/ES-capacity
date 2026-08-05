@@ -7,6 +7,21 @@
 | Commit date | 2026-04-14 |
 | Vendored on | 2026-08-04 |
 | Paper | arXiv:2511.16652 |
+| **Licence** | **GPL-3.0** — see `LICENSE` in this directory |
+
+## Licence
+
+GPL-3.0, copied verbatim to `LICENSE` here. This is **not** the repo's MIT licence and it is
+copyleft: anything distributed that is a derivative of these files must itself be GPL-3.0.
+
+Practical consequences for this repo:
+
+- The `patches/` convention doubles as GPL-3.0 §5(a) compliance — modified files carry a
+  prominent, dated record of what changed. Keep using it.
+- `es_capacity/` must not become a derivative of this tree if we want to keep our code MIT.
+  Reimplementing an algorithm described in the paper is fine (algorithms are not
+  copyrightable); porting or adapting these source files is not. `es_capacity/posttrain/`
+  therefore works from arXiv:2511.16652, not from `es_lora_multinode.py`, and cites the paper.
 
 To re-derive this tree, clone upstream, `git checkout bcc215e8`, copy the files listed
 below, then apply `patches/*.patch` in numeric order (`patch -p0` from this directory).
