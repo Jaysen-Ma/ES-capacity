@@ -28,27 +28,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-TARGET_MODULES = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
-
-
-def _module_shapes(cfg: dict[str, Any]) -> dict[str, tuple[int, int]]:
-    """Return {module: (in_features, out_features)} for one decoder layer."""
-    hidden = int(cfg["hidden_size"])
-    inter = int(cfg["intermediate_size"])
-    n_heads = int(cfg["num_attention_heads"])
-    n_kv = int(cfg.get("num_key_value_heads", n_heads))
-    head_dim = int(cfg.get("head_dim", hidden // n_heads))
-    q_out = n_heads * head_dim
-    kv_out = n_kv * head_dim
-    return {
-        "q_proj": (hidden, q_out),
-        "k_proj": (hidden, kv_out),
-        "v_proj": (hidden, kv_out),
-        "o_proj": (q_out, hidden),
-        "gate_proj": (hidden, inter),
-        "up_proj": (hidden, inter),
-        "down_proj": (inter, hidden),
-    }
+from es_capacity.posttrain.eggroll import TARGET_MODULES
+from es_capacity.posttrain.eggroll import module_shapes as _module_shapes
 
 
 def synth_lora_adapters(

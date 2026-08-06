@@ -41,11 +41,22 @@ class ESLoop:
         self.perturber.update(members, fitnesses, step)
         mean_r = float(sum(fitnesses) / max(len(fitnesses), 1))
         row = {"step": step, "mean_reward": mean_r, "wall": time.time()}
+        # Per-step diagnostics (fitness spread, truncation, throughput) so a
+        # degenerate or stalling run is visible in history.jsonl alone.
+        row.update(getattr(self.perturber, "last_diag", {}) or {})
         if self.eval_fn and step % self.eval_every == 0:
             row["eval"] = self.eval_fn()
         self.history.append(row)
         (self.output_dir / "history.jsonl").open("a").write(json.dumps(row) + "\n")
         return {"mean_reward": mean_r}
+
+    def load_history(self) -> None:
+        """Preload existing history.jsonl (resume) so reward_rising()'s window
+        spans the whole run, not just steps since the last restart."""
+        path = self.output_dir / "history.jsonl"
+        if not path.exists():
+            return
+        self.history = [json.loads(line) for line in path.open() if line.strip()]
 
     def reward_rising(self, window: int = 5) -> bool:
         if len(self.history) < window + 1:
