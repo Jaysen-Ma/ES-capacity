@@ -250,11 +250,11 @@ def load_correct_counts(run_dir: Path) -> tuple[list[int], list[int], int]:
 def truncate_to_common_n(
     arms: dict[str, Path],
 ) -> tuple[int, dict[str, tuple[list[int], list[int], int]]]:
-    """Load arms and truncate conceptually to min n (requires shard_size alignment).
+    """Load arms and truncate to min n across arms.
 
-    For v1 we require identical shard_size across arms and take min(n_shards)*shard_size
-    by re-aggregating only the first N shards if needed. Simpler approach: use min n_total
-    and scale counts is WRONG. Instead re-read first k shards.
+    Uses the leading samples per problem (whole shards, then a partial final
+    shard via scores[:take]) so an n=8 smoke can sit next to v1 arms that were
+    generated at shard_size=16. Scaling c by n_min/n is wrong; we re-count.
     """
     loaded = {name: load_correct_counts(path) for name, path in arms.items()}
     n_min = min(n for _, _, n in loaded.values())
@@ -271,22 +271,37 @@ def truncate_to_common_n(
 
 
 def _aggregate_first_n_samples(run_dir: Path, n_target: int) -> tuple[list[int], list[int], int]:
+    """Sum correct counts over the first n_target samples per problem.
+
+    Takes whole shards when they fit, then a partial final shard by counting
+    only the leading scores in each record. Needed so an n=8 ES smoke can be
+    compared against v1 arms that were generated with shard_size=16.
+    """
     run_dir = Path(run_dir)
     shards = sorted((run_dir / "shards").glob("shard_*"))
     per_idx: dict[int, int] = defaultdict(int)
     n_acc = 0
-    shard_size = None
     for sdir in shards:
+        if n_acc >= n_target:
+            break
         man = json.loads((sdir / "manifest.json").read_text())
         if not man.get("complete"):
             continue
         ss = int(man["shard_size"])
-        if n_acc + ss > n_target:
-            break
+        take = min(ss, n_target - n_acc)
         for r in read_jsonl(sdir / "records.jsonl"):
-            per_idx[int(r["idx"])] += int(r["c"])
-        n_acc += ss
-        shard_size = ss
+            idx = int(r["idx"])
+            if take == ss:
+                per_idx[idx] += int(r["c"])
+            else:
+                scores = r.get("scores")
+                if scores is None:
+                    raise ValueError(
+                        f"{sdir} record idx={idx} has no scores[]; "
+                        "cannot truncate mid-shard"
+                    )
+                per_idx[idx] += int(sum(bool(s) for s in scores[:take]))
+        n_acc += take
     if n_acc < n_target:
         raise ValueError(f"{run_dir} only has n={n_acc}, need {n_target}")
     indices = sorted(per_idx)
