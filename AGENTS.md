@@ -4,6 +4,14 @@
 
 1. If `.notes/STATE.md` exists locally, **read it before doing anything**. It is the session handoff.
 2. This file is committed; `.notes/` is gitignored personal state. Do not push `.notes/` or `config.local.toml`.
+3. Don't trust `STATE.md` at face value — verify it against ground truth (`git
+   status`, running processes, `nvidia-smi`, file mtimes) before acting on it or
+   summarizing it back to the user. A session can die mid-task after real work
+   landed but before the file reflects it; its mtime changing doesn't mean its
+   content is current.
+4. Update `STATE.md` as milestones land (a run finishes, a bug's root-caused, code
+   is verified), not only right before closing the session — the wrap-up write-up
+   is exactly the step a dying session skips.
 
 ## Project goal (v1)
 
