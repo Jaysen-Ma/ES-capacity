@@ -1,0 +1,53 @@
+# Experiment recipe: Minerva 7B capacity comparison.
+
+[experiment]
+name = "minerva_7b_v1"
+dataset = "minerva_math"
+description = "Base vs SimpleRL-Zoo GRPO vs EGGROLL on Minerva Math"
+
+[arms]
+base = "base"
+grpo = "grpo"
+es = "eggroll"             # local checkpoint path filled after training
+
+# ES arm. Hyperparameters follow upstream EGGROLL's single-GPU launch config
+# (third_party/eggroll/docker_launch_base_g1.sh) except where this box or the
+# comparison forces a change. See .notes/DECISIONS.md 2026-08-05.
+[eggroll]
+population_size = 64       # even; antithetic pairs. 4 chunks/step at 256 in flight
+lora_r = 1
+sigma = 0.001
+learning_rate = 0.001      # upstream single-GPU value (their 2e-4 is the pop-1024 script)
+prompt_batch_size = 16
+temperature = 0.0          # ES varies the policy by perturbation, not by sampling
+samples_per_prompt = 1     # follows from temperature 0
+max_tokens = 4096          # same window the eval scores in (configs/profiles/v1.toml)
+# Fresh noise every step. Reusing a noise block across steps only ever existed to
+# amortize engine rebuilds; the in-place update removed those, so 1 is free.
+steps_per_adapter = 1
+fitness_shaping = "centered_rank"   # binary reward over 16 prompts ties too often for /std
+normalize_with_std = false
+train_dataset = "math_lvl3to5"      # the split GRPO trained on, verbatim prompt
+
+# Iterations are a wall-clock decision, not a budget-parity one: run a block,
+# evaluate, resume to extend. records.jsonl is the real checkpoint; save_freq only
+# controls how often a loadable 15 GB HF checkpoint is materialized for eval.
+num_iterations = 24
+save_freq = 20
+update_timeout_sec = 900   # bounds the weight-update RPC so a wedged worker raises
+
+# Engine settings for training only. Deliberately NOT the eval engine's
+# (configs/machine/gb10.toml [vllm]) — changing that would make new eval shards
+# incomparable with the completed base/GRPO ones.
+[eggroll.engine]
+max_model_len = 6144       # longest train prompt 1690 + 4096 → no rollout is ever clamped
+max_num_seqs = 256         # KV-derived ceiling on this box; see DECISIONS.md
+max_loras = 16             # = max_num_seqs / prompt_batch_size, one chunk of members
+gpu_memory_utilization = 0.85
+
+[eggroll.validate]
+model_key = "base_1p5b"
+population_size = 32
+num_iterations = 30
+prompt_batch_size = 8
+max_tokens = 1024          # a correctness gate, not an arm — fairness cap does not apply

@@ -10,7 +10,7 @@ logs/
 *.nohup.out
 outputs/
 checkpoints/
-experiments/
+/experiments/
 *.safetensors
 *.pth
 *.bin
