@@ -113,6 +113,7 @@ def _build_eggroll_config(egg: dict, *, args: argparse.Namespace) -> EggrollConf
         temperature=float(egg.get("temperature", 0.0)),
         steps_per_adapter=int(args.steps_per_adapter or egg.get("steps_per_adapter", 1)),
         save_freq=int(args.save_every or egg.get("save_freq", 20)),
+        checkpoint_keep=int(args.checkpoint_keep or egg.get("checkpoint_keep", 20)),
         train_dataset=str(egg.get("train_dataset", "math_lvl3to5")),
         update_timeout_sec=float(egg.get("update_timeout_sec", 900.0)),
         engine=engine,
@@ -136,6 +137,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--max-loras", type=int, default=None)
     p.add_argument("--max-model-len", type=int, default=None)
     p.add_argument("--save-every", type=int, default=None, help="Materialize an HF checkpoint every N steps")
+    p.add_argument("--checkpoint-keep", type=int, default=None, help="How many checkpoints to retain on disk")
     p.add_argument("--base-seed", type=int, default=0)
     p.add_argument("--fresh", action="store_true", help="Ignore existing state; start the run over")
     p.add_argument("--skip-probe", action="store_true", help="Skip the Multi-LoRA go/no-go probe")

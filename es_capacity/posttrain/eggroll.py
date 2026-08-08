@@ -97,6 +97,10 @@ class EggrollConfig:
     # Fresh noise every step is now free (no engine rebuild), so the default is 1.
     steps_per_adapter: int = 1
     save_freq: int = 20
+    # How many materialized checkpoints to keep on disk (oldest pruned first).
+    # Each is ~15GB; this is a safety/disk-space knob, not a correctness one --
+    # resume never depends on old checkpoints existing, only on records.jsonl.
+    checkpoint_keep: int = 20
     train_dataset: str = "math_lvl3to5"
     update_timeout_sec: float = 900.0
     target_modules: tuple[str, ...] = TARGET_MODULES
@@ -497,7 +501,7 @@ class EggrollPerturber:
             num_pairs=self.num_pairs,
             scale=self.cfg.learning_rate / self.cfg.population_size,
         )
-        self._prune_checkpoints(keep=2)
+        self._prune_checkpoints(keep=self.cfg.checkpoint_keep)
         return ckpt_out
 
     def close(self) -> None:
