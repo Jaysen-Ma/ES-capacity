@@ -34,6 +34,7 @@ live on the branches above so they can be sent upstream as PRs later.
 | Max tokens | 2048 |
 | vLLM engines | 8 (one per GPU) |
 | GPUs | 0-7 (8x RTX 4090 48GB) |
+| Training wall-clock | 3h 22m 35s (2026-08-10 12:51:06 → 16:13:41 UTC), single uninterrupted run, includes the iteration-0 and final-iteration eval passes |
 
 Train:
 ```bash
