@@ -34,7 +34,7 @@ live on the branches above so they can be sent upstream as PRs later.
 | Max tokens | 2048 |
 | vLLM engines | 8 (one per GPU) |
 | GPUs | 0-7 (8x RTX 4090 48GB) |
-| Training wall-clock | 3h 22m 35s (2026-08-10 12:51:06 → 16:13:41 UTC), single uninterrupted run, includes the iteration-0 and final-iteration eval passes |
+| Training wall-clock | 3h 22m 35s (including 2 evals) |
 
 Train:
 ```bash
@@ -64,6 +64,28 @@ python math_eval.py \
   --max_tokens_per_call 2048 \
   --use_vllm --save_outputs
 ```
+
+## Training dynamics
+
+Per-iteration stats logged to W&B during training (min/mean/max across the
+population of 32, plus std), reward and response length:
+
+![training reward min/mean/max](results/iter50/train_reward_minmeanmax.png)
+![training reward std](results/iter50/train_reward_std.png)
+![training response length min/mean/max](results/iter50/train_response_length_minmeanmax.png)
+![training response length std](results/iter50/train_response_length_std.png)
+
+Reward climbs steadily and plateaus around iteration ~25-30. Response length
+falls the whole time — from a population mean of ~1700 tokens at iteration 0
+down to ~800 by the end — the model is learning to be *more concise* while
+getting *more correct*, not just running longer. Both std curves peak early
+(iteration ~10-15, while the population is still exploring the reward
+landscape) and then decay, consistent with the population converging on a
+consistent style/strategy rather than staying diffuse.
+
+Regenerate with `scripts/plot_training_curves.py --wandb-run
+chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50` (or
+`--csv results/iter50/training_curves.csv` from the saved snapshot).
 
 ## Results
 
