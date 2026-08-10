@@ -1,57 +1,73 @@
 # ES-capacity
 
-**Does evolution-strategy post-training expand LLM reasoning capacity beyond the base model?**
+Does Evolution-Strategies post-training preserve a base model's pass@k
+ceiling better than gradient-based RLVR (GRPO)? RLVR reliably raises pass@1
+but tends to narrow the pass@k ceiling relative to the base model — this
+project tests whether ES-based fine-tuning (gradient-free, population-based)
+avoids that narrowing, on the same task/reward/data.
 
-This project generalises the pass@k capacity analysis of [Yue et al.](https://arxiv.org/abs/2504.13837) from RLVR to evolution-strategy post-training, starting with [EGGROLL](https://arxiv.org/abs/2511.16652) (Sarkar et al.) and keeping [Qiu et al. full-rank ES](https://arxiv.org/abs/2509.24372) as a drop-in.
+Training and evaluation run from forked, patched copies of the original
+papers' code, not from code vendored into this repo — that keeps license
+boundaries clean (the forks are GPL-3.0 / unlicensed-upstream; this repo
+stays MIT) and keeps this repo as the results/methodology record, not a
+second copy of someone else's trainer.
 
-## v1 arms (Minerva Math)
+## Code
 
-| Arm | Checkpoint |
-|-----|------------|
-| Base | Qwen2.5-7B |
-| GRPO | [hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo) |
-| ES | EGGROLL trained locally (no public fine-tuned weights) |
+| Purpose | Repo | Branch | Notes |
+|---|---|---|---|
+| ES training | [Jaysen-Ma/es-at-scale](https://github.com/Jaysen-Ma/es-at-scale) (fork of [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale), arXiv:2509.24372) | `fix/multi-engine-colocation` | Full-rank ES, Ray-orchestrated multi-engine vLLM. 3 fixes needed to run on a single-node multi-GPU box: vLLM ≥0.20 import compat, co-located-engine port/cache-collision + concurrent-compile races, `--start-iteration` resume support. Verified on 8x RTX 4090. |
+| pass@k generation, grading, plotting | [Jaysen-Ma/limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR) (fork of [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR), arXiv:2504.13837) | `fix/math-equal-timeout-bypass` | `math/examples/math_eval/` already implements the unbiased pass@k estimator and a full generate+grade harness (`math_eval.py`, `--n_sampling`). Fixes a real grading-worker hang (`math_equal`'s equation-comparison branch bypassed the timeout guard). |
 
-Figures: pass@k curves, accuracy histogram, solvable-set coverage.
+Both forks' `main` are kept as unmodified mirrors of upstream; all changes
+live on the branches above so they can be sent upstream as PRs later.
 
-## Quick start
+## Experiment 1: Qwen2.5-1.5B base vs. ES-at-scale-trained
 
-No hardcoded paths: everything machine- or user-specific lives in a config layer, not in code.
+| Param | Value |
+|---|---|
+| Model | `Qwen/Qwen2.5-1.5B` (base, not Instruct) |
+| Task | math |
+| sigma | 0.001 |
+| alpha (lr) | auto (`sigma/2` = 0.0005, `es-at-scale`'s default when `--alpha` is unset) |
+| Population size | 32 |
+| Iterations | 50 |
+| Train dataset | `math_lvl3to5_8k` |
+| Batch size / mini-batch size | 256 / 256 |
+| Max tokens | 2048 |
+| vLLM engines | 8 (one per GPU) |
+| GPUs | 0-7 (8x RTX 4090 48GB) |
 
+Train:
 ```bash
-cp config.local.example.toml config.local.toml   # fill in models_dir (and venv, optional)
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
-# torch / vllm / transformers: install per docs/ENVIRONMENT.md
-
-# Smoke (minutes) — uses configs/machine/example.toml by default:
-python -m es_capacity.cli.eval --profile smoke --arm base
-
-# Aggregate + figures:
-python -m es_capacity.cli.aggregate --run-id <run_id>
-python -m es_capacity.cli.figures --runs <run_a>,<run_b>
+cd es-at-scale  # Jaysen-Ma/es-at-scale @ fix/multi-engine-colocation
+python -m es_at_scale.train \
+  --task math \
+  --model-name Qwen/Qwen2.5-1.5B \
+  --sigma 0.001 \
+  --population-size 32 \
+  --n-iterations 50 \
+  --train-dataset datasets/train/math_lvl3to5_8k \
+  --batch-size 256 --mini-batch-size 256 \
+  --max-tokens 2048 \
+  --n-vllm-engines 8 --use-gpus 0,1,2,3,4,5,6,7
 ```
 
-Everything reads through `configs/machine/<name>.toml ← configs/profiles/<profile>.toml ← configs/experiments/<exp>.toml ← config.local.toml` (see `AGENTS.md`). To adapt this to your own hardware: copy `configs/machine/example.toml` to `configs/machine/<yours>.toml`, then either pass `--machine <yours>` on every CLI call or `export ES_CAPACITY_MACHINE=<yours>` in your own shell so it becomes the default everywhere without editing any committed file.
+Evaluate (base and the final ES checkpoint, same command against each;
+temperature/top_p/n match this project's prior pass@64 convention):
+```bash
+cd limit-of-RLVR/math/examples/math_eval  # Jaysen-Ma/limit-of-RLVR @ fix/math-equal-timeout-bypass
+python math_eval.py \
+  --data_names minerva_math \
+  --model_name_or_path <path-to-checkpoint-or-Qwen/Qwen2.5-1.5B> \
+  --prompt_type qwen-boxed \
+  --n_sampling 64 \
+  --temperature 0.6 --top_p 0.95 \
+  --max_tokens_per_call 2048 \
+  --use_vllm --save_outputs
+```
 
-## Layout
+## Results
 
-See [AGENTS.md](AGENTS.md) for conventions. Vendored author code lives under `third_party/` with a `VENDOR.md` and numbered patches.
-
-## Papers
-
-| Role | Paper | Link |
-|------|-------|------|
-| Capacity analysis | Yue et al. | arXiv:2504.13837 |
-| Low-rank ES (EGGROLL) | Sarkar et al. | arXiv:2511.16652 |
-| Full-parameter ES | Qiu et al. | arXiv:2509.24372 |
-| GRPO baseline | Zeng et al. (SimpleRL-Zoo) | arXiv:2503.18892 |
-
-## Licence
-
-Our code is MIT (see [LICENSE](LICENSE)).
-
-Vendored third-party code under `third_party/` keeps its **own** upstream licence, which is
-not MIT and in two cases is more restrictive. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
-for the per-tree terms before reusing anything from there — in particular, `third_party/eggroll/`
-is GPL-3.0 and `third_party/qiu_es/` is restricted to non-commercial use.
+*(pending — pass@k curve for base vs. ES-trained goes here once the run and
+eval complete)*

@@ -1,62 +1,17 @@
 # Local / personal (never push)
 .notes/
 config.local.toml
-.cursor/
 
-# Runtime artifacts
+# Local scratch (eval outputs staged here before being distilled into README)
 runs/
 logs/
 *.log
-*.nohup.out
-outputs/
-checkpoints/
-/experiments/
-*.safetensors
-*.pth
-*.bin
-*.pt
-
-# Downloaded training data (regenerate: python -m es_capacity.cli.fetch_train_data)
-# README.md + SHA256 stay committed so the download stays verifiable.
-data/simplerl_*/train.jsonl
-
-# Model / HF caches
-.hf_cache/
-.cache/
-huggingface/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.eggs/
-dist/
-build/
-*.egg
-.venv/
-venv/
-.env
-.env.*
 
 # Editors / OS
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 .DS_Store
 Thumbs.db
-
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Coverage / test
-.coverage
-htmlcov/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Wandb
-wandb/
