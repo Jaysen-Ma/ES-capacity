@@ -1,8 +1,12 @@
 """
 Given two math_eval.py output directories (base model vs. our ES-trained
 model, same benchmark, same n_sampling), compute:
-  1. pass@k curves for k=1..n_sampling for both models (unbiased estimator,
-     same formula math_eval's own evaluate.py uses for pass@k).
+  1. pass@k curves at k = powers of 2 up to n_sampling (1, 2, 4, ..., n) for
+     both models — same k_values convention and same unbiased estimator as
+     math_eval's own evaluate.py, and the same sparse-power-of-2 sampling the
+     limit-of-RLVR paper's own figures use (not every integer k — the repo
+     itself has no plotting code to match against, this replicates the
+     paper's figures by eye).
   2. The four-way solvable/unsolvable breakdown (Table 2 style): for each
      question, "solvable" = at least one of the n_sampling completions was
      correct. Cross-tabulate base vs. trained.
@@ -43,8 +47,20 @@ def load_scores(result_dir: str) -> dict:
     return by_idx
 
 
-def pass_at_k_curve(scores_by_idx: dict) -> np.ndarray:
-    """pass@k for k=1..N, unbiased estimator, averaged over questions."""
+def power_of_2_ks(n: int) -> list:
+    """1, 2, 4, ..., up to n (same convention as math_eval's evaluate.py and
+    the limit-of-RLVR paper's own pass@k figures)."""
+    ks = [1]
+    power = 1
+    while 2 ** power <= n:
+        ks.append(2 ** power)
+        power += 1
+    return ks
+
+
+def pass_at_k_curve(scores_by_idx: dict) -> tuple:
+    """pass@k at k = powers of 2 up to N, unbiased estimator, averaged over
+    questions. Returns (ks, values)."""
     lens = {len(v) for v in scores_by_idx.values()}
     if len(lens) != 1:
         raise ValueError(f"Inconsistent n_sampling across questions: {lens}")
@@ -56,10 +72,9 @@ def pass_at_k_curve(scores_by_idx: dict) -> np.ndarray:
         return 1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1))
 
     num_correct = np.array([sum(v) for v in scores_by_idx.values()])
-    curve = np.zeros(n)
-    for k in range(1, n + 1):
-        curve[k - 1] = np.mean([estimator(n, c, k) for c in num_correct])
-    return curve
+    ks = power_of_2_ks(n)
+    values = [float(np.mean([estimator(n, c, k) for c in num_correct])) for k in ks]
+    return ks, values
 
 
 def four_way_breakdown(base: dict, trained: dict) -> dict:
@@ -94,22 +109,25 @@ def main():
     ap.add_argument("--base-dir", required=True, help="math_eval.py output dir for the base model (.../minerva_math)")
     ap.add_argument("--trained-dir", required=True, help="math_eval.py output dir for the trained model")
     ap.add_argument("--out-prefix", required=True)
+    ap.add_argument("--title", default=None, help="Benchmark display name for the plot title (defaults to out-prefix's basename)")
     ap.add_argument("--plot", action="store_true", help="Also save a pass@k curve PNG (requires matplotlib)")
     args = ap.parse_args()
 
     base_scores = load_scores(args.base_dir)
     trained_scores = load_scores(args.trained_dir)
 
-    base_curve = pass_at_k_curve(base_scores)
-    trained_curve = pass_at_k_curve(trained_scores)
+    base_ks, base_curve = pass_at_k_curve(base_scores)
+    trained_ks, trained_curve = pass_at_k_curve(trained_scores)
+    assert base_ks == trained_ks, f"k grids differ: base={base_ks} trained={trained_ks} (n_sampling must match)"
 
     breakdown = four_way_breakdown(base_scores, trained_scores)
 
     out = {
         "n_sampling_base": len(next(iter(base_scores.values()))),
         "n_sampling_trained": len(next(iter(trained_scores.values()))),
-        "pass_at_k_base": base_curve.tolist(),
-        "pass_at_k_trained": trained_curve.tolist(),
+        "ks": base_ks,
+        "pass_at_k_base": base_curve,
+        "pass_at_k_trained": trained_curve,
         "four_way_breakdown": breakdown,
     }
 
@@ -123,22 +141,40 @@ def main():
         print(f"  {k}: {v}%")
 
     if args.plot:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-
-        ks = np.arange(1, len(base_curve) + 1)
-        plt.figure(figsize=(6, 4))
-        plt.plot(ks, base_curve * 100, label="Base model", marker="o", markersize=3)
-        plt.plot(ks, trained_curve * 100, label="ES-trained model", marker="o", markersize=3)
-        plt.xscale("log")
-        plt.xlabel("k")
-        plt.ylabel("pass@k (%)")
-        plt.title("Minerva Math: pass@k, base vs. ES-trained")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{args.out_prefix}_passk.png", dpi=150)
+        plot_curve(base_ks, base_curve, trained_curve, args.title or os.path.basename(args.out_prefix), f"{args.out_prefix}_passk.png")
         print(f"Wrote {args.out_prefix}_passk.png")
+
+
+def plot_curve(ks, base_curve, trained_curve, title, out_path):
+    """Style matches the limit-of-RLVR paper's own pass@k figures: sparse
+    power-of-2 k, log-x with plain-integer tick labels at exactly those k
+    values, triangle markers, 0-1 y-axis labeled 'Coverage (pass@k)'."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    base_color = "#1b7a72"    # teal, matches paper's "Base" series
+    trained_color = "#e8776a"  # coral, matches paper's "RL" series
+
+    fig, ax = plt.subplots(figsize=(4.2, 3.6))
+    ax.plot(ks, base_curve, label="Base", marker="^", markersize=5, linewidth=1.8, color=base_color)
+    ax.plot(ks, trained_curve, label="ES-trained", marker="^", markersize=5, linewidth=1.8, color=trained_color)
+
+    ax.set_xscale("log")
+    ax.set_xticks(ks)
+    ax.set_xticklabels([str(k) for k in ks])
+    ax.minorticks_off()
+
+    ymax = max(max(base_curve), max(trained_curve))
+    ax.set_ylim(0, min(1.0, max(0.2, np.ceil(ymax * 5) / 5)))
+    ax.set_xlabel("Number of Samples $k$")
+    ax.set_ylabel("Coverage (pass@$k$)")
+    ax.set_title(title)
+    ax.grid(True, linestyle="-", linewidth=0.5, alpha=0.4)
+    ax.legend(loc="upper left", frameon=True)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
 
 
 if __name__ == "__main__":

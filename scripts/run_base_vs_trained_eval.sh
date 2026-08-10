@@ -7,18 +7,18 @@
 # args when calling this.
 #
 # Usage:
-#   ./run_base_vs_trained_eval.sh <trained_hf_model_dir> <run_tag>
+#   ./run_base_vs_trained_eval.sh <trained_hf_model_dir> <run_tag> [benchmark=minerva_math] [n_sampling=64]
 #
 # Requires: limit-of-RLVR/math/examples/math_eval/run_sharded_eval.sh
 set -euo pipefail
 
 TRAINED_MODEL_DIR=$1
 RUN_TAG=${2:-run1}
+BENCHMARK=${3:-minerva_math}
+N_SAMPLING=${4:-64}
 
 BASE_MODEL_DIR="/workspace/.hf_home/hub/models--Qwen--Qwen2.5-1.5B/snapshots/8faed761d45a263340a0528343f099c05c9a4323"
-BENCHMARK="minerva_math"
 PROMPT_TYPE="qwen-boxed"
-N_SAMPLING=64
 TEMPERATURE=0.6
 TOP_P=0.95
 MAX_TOKENS=2048
@@ -45,12 +45,21 @@ echo "=== [2/2] Trained model: $TRAINED_MODEL_DIR ==="
 ./run_sharded_eval.sh "$TRAINED_MODEL_DIR" "$TRAINED_OUT" "$BENCHMARK" "$N_SAMPLING" \
     "$TEMPERATURE" "$TOP_P" "$MAX_TOKENS" "$PROMPT_TYPE" "$SEED"
 
+case "$BENCHMARK" in
+    aime24) TITLE="AIME24" ;;
+    math500) TITLE="MATH500" ;;
+    minerva_math) TITLE="Minerva" ;;
+    olympiadbench) TITLE="OlympiadBench" ;;
+    *) TITLE="$BENCHMARK" ;;
+esac
+
 echo "=== Analyzing ==="
 cd /workspace/ES-capacity
 python scripts/analyze_results.py \
     --base-dir "${BASE_OUT}/${BENCHMARK}" \
     --trained-dir "${TRAINED_OUT}/${BENCHMARK}" \
     --out-prefix "results/${RUN_TAG}/${BENCHMARK}" \
+    --title "$TITLE" \
     --plot
 
 echo "Done. See results/${RUN_TAG}/${BENCHMARK}_summary.json and _passk.png"
