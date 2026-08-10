@@ -60,3 +60,8 @@ htmlcov/
 
 # Wandb
 wandb/
+# Raw per-shard generation outputs (large; regenerate via run_base_vs_trained_eval.sh)
+results/*/base/
+results/*/trained/
+results/*/*.log
+results/*_run.log

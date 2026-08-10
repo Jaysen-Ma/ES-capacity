@@ -66,8 +66,49 @@ python math_eval.py \
 
 ## Results
 
-*(pending — pass@k curve for base vs. ES-trained goes here once the run and
-eval complete)*
+Minerva Math, `n_sampling=64`, identical generation settings for both models
+(`temperature=0.6`, `top_p=0.95`, `max_tokens=2048`, `qwen-boxed` template,
+`seed=1`; enforced by a single wrapper script so the two runs can't drift —
+see `scripts/run_base_vs_trained_eval.sh`).
+
+**Unlike the RLVR pattern the source paper documents (RL narrows the pass@k
+ceiling, base models catch up and overtake at large k), the ES-trained model
+stays *above* the base model at every k from 1 to 64** — no crossover:
+
+| k | Base | ES-trained |
+|---|---|---|
+| 1 | 1.75% | 2.75% |
+| 2 | 3.32% | 5.09% |
+| 4 | 6.05% | 8.95% |
+| 8 | 10.33% | 14.59% |
+| 16 | 16.16% | 21.58% |
+| 32 | 22.97% | 28.94% |
+| 64 | 30.15% | 36.40% |
+
+![pass@k curve](results/iter50/minerva_math_passk.png)
+
+Four-way solvable/unsolvable breakdown (272 Minerva questions, "solvable" =
+at least 1 of 64 samples correct):
+
+| | Trained solves | Trained fails |
+|---|---|---|
+| **Base solves** | 24.3% | 5.9% |
+| **Base fails** | 12.1% | 57.7% |
+
+12.1% of questions gained (base couldn't solve, ES-trained can) against 5.9%
+lost (base could, ES-trained can't) — a net +6.2 points of question coverage,
+with about 2x as many gains as losses. Combined with the pass@k curve never
+crossing back below base, this is consistent with genuine capacity expansion
+rather than the sampling-efficiency-for-ceiling tradeoff RLVR typically shows.
+
+Caveat: `n_sampling=64` is well below the source paper's own budget for this
+kind of claim (k up to 1024 for AIME, 128 for MATH500), so the tail of the
+curve (k>32) carries more estimator variance than the head — the qualitative
+"no crossover" finding is the robust part of this result, not the exact
+percentages at k=64.
+
+Raw generations: `results/iter50/{base,trained}/minerva_math/` (gitignored,
+~85MB each — regenerate with `scripts/run_base_vs_trained_eval.sh`).
 
 ## Later
 
