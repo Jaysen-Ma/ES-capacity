@@ -4,19 +4,21 @@
 # and ES-trained outputs already computed by run_full_eval_suite.sh.
 #
 # Usage:
-#   ./run_third_model_full_suite.sh <model_dir> <label> <run_tag>
+#   ./run_third_model_full_suite.sh <model_dir> <label> <run_tag> [n_sampling_override]
 # e.g.
 #   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl iter50
+#   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl iter50 32
 set -euo pipefail
 
 MODEL_DIR=$1
 LABEL=$2
 RUN_TAG=${3:-run1}
+N_SAMPLING_OVERRIDE=${4:-}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_ROOT="/workspace/ES-capacity/results/${RUN_TAG}"
 
-"$SCRIPT_DIR/run_third_model_eval.sh" "$MODEL_DIR" "$LABEL" "$RUN_TAG"
+"$SCRIPT_DIR/run_third_model_eval.sh" "$MODEL_DIR" "$LABEL" "$RUN_TAG" "$N_SAMPLING_OVERRIDE"
 
 declare -A TITLES=(
     [aime24]="AIME24"

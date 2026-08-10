@@ -30,7 +30,11 @@ import numpy as np
 from analyze_results import load_scores, pass_at_k_curve, four_way_breakdown
 
 
-def plot_three_way(ks, base_curve, es_curve, rl_curve, title, out_path):
+def plot_three_way(base_ks, base_curve, es_ks, es_curve, rl_ks, rl_curve, title, out_path):
+    """Each series is plotted over its own k-range — rl_ks may be a shorter
+    prefix of base_ks/es_ks (e.g. a cheap low-k RL check before committing to
+    the full budget), in which case its line simply stops early while base/ES
+    continue, rather than forcing all three onto one truncated range."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -42,12 +46,17 @@ def plot_three_way(ks, base_curve, es_curve, rl_curve, title, out_path):
     }
 
     fig, ax = plt.subplots(figsize=(4.6, 3.8))
-    for label, curve in [("Base", base_curve), ("ES-trained", es_curve), ("RL (SimpleRL-Zoo)", rl_curve)]:
+    for label, ks, curve in [
+        ("Base", base_ks, base_curve),
+        ("ES-trained", es_ks, es_curve),
+        ("RL (SimpleRL-Zoo)", rl_ks, rl_curve),
+    ]:
         ax.plot(ks, curve, label=label, marker="^", markersize=5, linewidth=1.8, color=colors[label])
 
+    all_ks = sorted(set(base_ks) | set(es_ks) | set(rl_ks))
     ax.set_xscale("log")
-    ax.set_xticks(ks)
-    ax.set_xticklabels([str(k) for k in ks])
+    ax.set_xticks(all_ks)
+    ax.set_xticklabels([str(k) for k in all_ks])
     ax.minorticks_off()
 
     ymax = max(max(base_curve), max(es_curve), max(rl_curve))
@@ -79,19 +88,36 @@ def main():
     base_ks, base_curve = pass_at_k_curve(base_scores)
     es_ks, es_curve = pass_at_k_curve(es_scores)
     rl_ks, rl_curve = pass_at_k_curve(rl_scores)
-    assert base_ks == es_ks == rl_ks, f"k grids differ: base={base_ks} es={es_ks} rl={rl_ks}"
+    assert base_ks == es_ks, f"base/ES k grids differ: base={base_ks} es={es_ks} (these should always match)"
+    if rl_ks != base_ks:
+        prefix_len = min(len(rl_ks), len(base_ks))
+        assert rl_ks == base_ks[:prefix_len], (
+            f"RL's k grid isn't a prefix of base/ES's: base={base_ks} rl={rl_ks}. "
+            "RL must use the same n_sampling as base/ES, or a smaller uniform override."
+        )
+        print(f"Note: RL n_sampling ({rl_ks[-1]}) is smaller than base/ES ({base_ks[-1]}) — "
+              f"RL's pass@k curve and 'solvable' bar only cover k up to {rl_ks[-1]}.")
 
+    n_base = len(next(iter(base_scores.values())))
+    n_rl = len(next(iter(rl_scores.values())))
     es_breakdown = four_way_breakdown(base_scores, es_scores)
     rl_breakdown = four_way_breakdown(base_scores, rl_scores)
 
     out = {
-        "n_sampling": len(next(iter(base_scores.values()))),
-        "ks": base_ks,
+        "n_sampling_base_es": n_base,
+        "n_sampling_rl": n_rl,
+        "ks_base_es": base_ks,
+        "ks_rl": rl_ks,
         "pass_at_k_base": base_curve,
         "pass_at_k_es": es_curve,
         "pass_at_k_rl": rl_curve,
         "four_way_breakdown_es_vs_base": es_breakdown,
         "four_way_breakdown_rl_vs_base": rl_breakdown,
+        "note": (
+            None if n_rl == n_base else
+            f"'solvable' means different sample budgets for ES ({n_base}) vs RL ({n_rl}) — "
+            "not a perfectly apples-to-apples threshold between the two tables."
+        ),
     }
 
     os.makedirs(os.path.dirname(args.out_prefix) or ".", exist_ok=True)
@@ -99,16 +125,16 @@ def main():
         json.dump(out, f, indent=2)
     print(f"Wrote {args.out_prefix}_summary.json")
 
-    print("\nES vs base, % of questions:")
+    print(f"\nES vs base (solvable within {n_base} samples), % of questions:")
     for k, v in es_breakdown["fractions_pct"].items():
         print(f"  {k}: {v}%")
-    print("\nRL vs base, % of questions:")
+    print(f"\nRL vs base (solvable within {n_rl} samples), % of questions:")
     for k, v in rl_breakdown["fractions_pct"].items():
         print(f"  {k}: {v}%")
 
     if args.plot:
         title = args.title or os.path.basename(args.out_prefix)
-        plot_three_way(base_ks, base_curve, es_curve, rl_curve, title, f"{args.out_prefix}_passk.png")
+        plot_three_way(base_ks, base_curve, es_ks, es_curve, rl_ks, rl_curve, title, f"{args.out_prefix}_passk.png")
         print(f"Wrote {args.out_prefix}_passk.png")
 
 
