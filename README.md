@@ -7,10 +7,7 @@ project tests whether ES-based fine-tuning (gradient-free, population-based)
 avoids that narrowing, on the same task/reward/data.
 
 Training and evaluation run from forked, patched copies of the original
-papers' code, not from code vendored into this repo — that keeps license
-boundaries clean (the forks are GPL-3.0 / unlicensed-upstream; this repo
-stays MIT) and keeps this repo as the results/methodology record, not a
-second copy of someone else's trainer.
+papers' code.
 
 ## Code
 
@@ -32,7 +29,7 @@ live on the branches above so they can be sent upstream as PRs later.
 | alpha (lr) | auto (`sigma/2` = 0.0005, `es-at-scale`'s default when `--alpha` is unset) |
 | Population size | 32 |
 | Iterations | 50 |
-| Train dataset | `math_lvl3to5_8k` |
+| Train dataset | `math_lvl3to5_8k` (matches SimpleRL-Zoo's training set) |
 | Batch size / mini-batch size | 256 / 256 |
 | Max tokens | 2048 |
 | vLLM engines | 8 (one per GPU) |
@@ -71,3 +68,9 @@ python math_eval.py \
 
 *(pending — pass@k curve for base vs. ES-trained goes here once the run and
 eval complete)*
+
+## Later
+
+A third arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
+LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES) is planned
+once this first experiment is done.
