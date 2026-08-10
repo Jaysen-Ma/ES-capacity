@@ -60,8 +60,14 @@ htmlcov/
 
 # Wandb
 wandb/
-# Raw per-shard generation outputs (large; regenerate via run_base_vs_trained_eval.sh)
+# Raw per-shard generation outputs (large; regenerate via run_base_vs_trained_eval.sh /
+# run_third_model_eval.sh)
 results/*/base/
 results/*/trained/
+results/*/rl/
 results/*/*.log
 results/*_run.log
+
+# Transient per-shard model copies from run_sharded_eval.sh (cleaned up on
+# exit via its EXIT trap; ignored defensively in case a run dies uncleanly)
+**/model_shards.*/

@@ -23,7 +23,7 @@ def plot_minmeanmax(df, metric_prefix, ylabel, title, out_path):
     import matplotlib.pyplot as plt
 
     x = df["global_step"]
-    fig, ax = plt.subplots(figsize=(5.5, 3.8))
+    fig, ax = plt.subplots(figsize=(3.2, 2.5))
     ax.plot(x, df[f"{metric_prefix}/max"], label="max", color="#e74c3c", linewidth=1.4)
     ax.plot(x, df[f"{metric_prefix}/mean"], label="mean", color="#2c3e50", linewidth=2.0)
     ax.plot(x, df[f"{metric_prefix}/min"], label="min", color="#3498db", linewidth=1.4)
@@ -43,7 +43,7 @@ def plot_std(df, metric, ylabel, title, out_path):
     import matplotlib.pyplot as plt
 
     x = df["global_step"]
-    fig, ax = plt.subplots(figsize=(5.5, 3.8))
+    fig, ax = plt.subplots(figsize=(3.2, 2.5))
     ax.plot(x, df[metric], color="#8e44ad", linewidth=1.8)
     ax.set_xlabel("Iteration")
     ax.set_ylabel(ylabel)
