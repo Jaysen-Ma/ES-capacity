@@ -1,6 +1,6 @@
 {
   "n_sampling_base_es": 128,
-  "n_sampling_rl": 32,
+  "n_sampling_rl": 128,
   "ks_base_es": [
     1,
     2,
@@ -17,7 +17,9 @@
     4,
     8,
     16,
-    32
+    32,
+    64,
+    128
   ],
   "pass_at_k_base": [
     0.017922794117647044,
@@ -40,12 +42,14 @@
     0.4375
   ],
   "pass_at_k_rl": [
-    0.03676470588235293,
-    0.06707335151802656,
-    0.1140463464306746,
-    0.17598275009213635,
-    0.24524577517409943,
-    0.31985294117647056
+    0.03722426470588232,
+    0.067943239057434,
+    0.11619814480910474,
+    0.1818668498658885,
+    0.2574393114765656,
+    0.3341576379239182,
+    0.4068485063060823,
+    0.4742647058823529
   ],
   "four_way_breakdown_es_vs_base": {
     "n_questions": 272,
@@ -65,17 +69,17 @@
   "four_way_breakdown_rl_vs_base": {
     "n_questions": 272,
     "counts": {
-      "base_solved_trained_solved": 81,
-      "base_solved_trained_failed": 29,
-      "base_failed_trained_solved": 6,
-      "base_failed_trained_failed": 156
+      "base_solved_trained_solved": 95,
+      "base_solved_trained_failed": 15,
+      "base_failed_trained_solved": 34,
+      "base_failed_trained_failed": 128
     },
     "fractions_pct": {
-      "base_solved_trained_solved": 29.8,
-      "base_solved_trained_failed": 10.7,
-      "base_failed_trained_solved": 2.2,
-      "base_failed_trained_failed": 57.4
+      "base_solved_trained_solved": 34.9,
+      "base_solved_trained_failed": 5.5,
+      "base_failed_trained_solved": 12.5,
+      "base_failed_trained_failed": 47.1
     }
   },
-  "note": "'solvable' means different sample budgets for ES (128) vs RL (32) \u2014 not a perfectly apples-to-apples threshold between the two tables."
+  "note": null
 }

@@ -178,46 +178,67 @@ gaining 13.3%. Combined with no pass@k crossover on any benchmark, this is
 consistent with genuine capacity expansion, not the sampling-efficiency-for-
 ceiling tradeoff RLVR typically shows.
 
-### Base vs. ES vs. RL (SimpleRL-Zoo) — partial, k≤32
+### Base vs. ES vs. RL (SimpleRL-Zoo) — full budget
 
 Added [hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo)
 (a real, published GRPO-trained model, same `Qwen2.5-1.5B` base) as a third
 arm, to check the ES-vs-RLVR hypothesis head-to-head rather than only against
-the source paper's qualitative description. **RL was only evaluated up to
-k=32** (a deliberately cheap early check — `scripts/run_third_model_eval.sh`'s
-`n_sampling_override`) rather than matching ES/base's full 512/128 budget, so
-the RL curve stops at k=32 in each plot while base/ES continue further right;
-treat this as a partial, not final, result.
+the source paper's qualitative description. RL now matches base/ES's full
+budget exactly (k up to 512 for AIME24, 128 for the rest — an initial cheap
+k≤32 check was run first and superseded by this full run, see git history if
+curious).
 
-Within k≤32, RL's *raw* pass@k is competitive with or slightly ahead of ES on
-3 of 4 benchmarks (SimpleRL-Zoo is a mature, fully-trained public model — our
-ES run is 50 iterations / 3.4hrs, plausibly much less total optimization).
-But the four-way breakdown tells a different story: **RL trades away more of
-base's existing capability than it gains, on every benchmark tested — the
-opposite pattern from ES:**
+**The full-budget result does not confirm the pattern the k≤32 partial check
+suggested.** At the full budget, RL narrows *less* than ES on 3 of 4
+benchmarks, and matches or exceeds ES's net question-coverage gain on all 4:
 
 | Benchmark | ES: narrow / gain / **net** | RL: narrow / gain / **net** |
 |---|---|---|
-| AIME24 | 0.0% / 13.3% / **+13.3** | 13.3% / 3.3% / **−10.0** |
-| MATH500 | 1.4% / 12.0% / **+10.6** | 6.8% / 6.8% / **0.0** |
-| Minerva | 7.0% / 10.3% / **+3.3** | 10.7% / 2.2% / **−8.5** |
-| OlympiadBench | 3.9% / 13.3% / **+9.4** | 10.8% / 6.4% / **−4.4** |
+| AIME24 | 0.0% / 13.3% / **+13.3** | 3.3% / 30.0% / **+26.7** |
+| MATH500 | 1.4% / 12.0% / **+10.6** | 1.2% / 12.6% / **+11.4** |
+| Minerva | 7.0% / 10.3% / **+3.3** | 5.5% / 12.5% / **+7.0** |
+| OlympiadBench | 3.9% / 13.3% / **+9.4** | 3.4% / 12.9% / **+9.5** |
 
 ![AIME24 three-way](results/iter50/aime24_threeway_passk.png) ![MATH500 three-way](results/iter50/math500_threeway_passk.png) ![Minerva three-way](results/iter50/minerva_math_threeway_passk.png) ![OlympiadBench three-way](results/iter50/olympiadbench_threeway_passk.png)
 
-**Important open question:** RL's higher *raw* pass@k at low k combined with
-*more* narrowing relative to base is exactly consistent with the source
-paper's mechanism (RLVR concentrates probability mass on paths it already
-knew, boosting low-k coverage while trading away some existing capability) —
-but we haven't yet evaluated RL at the higher k (128, matching base/ES, or
-further) where the paper's crossover actually shows up. It's unresolved
-whether RL's pass@k curve would plateau/cross below ES-trained's given the
-full budget, or stay ahead throughout. Extending the RL arm to k=128 (same as
-base/ES) is the natural next step to resolve this.
+There's also no consistent "RL ahead at low k, base/ES catch up and overtake
+at high k" crossover — the classic pattern the source paper documents — in
+any of the 4 curves. What actually happens varies per benchmark:
 
-Raw generations for all three arms: `results/iter50/{base,trained,rl}/`
-(gitignored, regenerate with `scripts/run_base_vs_trained_eval.sh` /
-`scripts/run_third_model_eval.sh`).
+- **AIME24**: RL and ES are essentially tied through k≈16, then RL's lead
+  *grows* with k, reaching pass@512 = 50.0% vs ES's 36.7%. The opposite of
+  the paper's expected shape (n=30 questions here, so this curve is the
+  noisiest of the four — a small sample of hard problems where a handful of
+  lucky high-k hits move the numbers a lot).
+- **MATH500**: RL actually starts *below* ES at low k (pass@1: 13.4% vs
+  16.8%), crosses over around k≈16-32, and finishes slightly ahead at k=128
+  (90.0% vs 89.2%) — a real crossover, but inverted from the paper's story.
+- **Minerva**: RL stays above ES at every k from 1 to 128 — gap starts small
+  (+0.9 point at k=1), grows through the mid-range, plateaus around +3.5 to
+  +4.4 points by k≥16 — no crossover either direction.
+- **OlympiadBench**: the two are close throughout (within ±1 point), RL
+  slightly behind at low k, converging to a near-exact tie by k=128.
+
+**Read this carefully — it's not a compute-matched comparison.** SimpleRL-Zoo
+is a mature, fully-trained public model; this project's ES run is 50
+iterations / 3h22m on one 8-GPU box. The full result doesn't support "ES
+preserves capability better than RLVR in general" as cleanly as the k≤32
+partial check suggested — if anything, in this specific (compute-mismatched)
+comparison, RL matches or slightly outperforms ES on capability
+preservation, contrary to the project's original hypothesis. What *does*
+survive from the ES-vs-base section above: ES itself shows no crossover and
+a clean net-positive result relative to the base model on all 4 benchmarks —
+that finding is unaffected by anything here. Whether ES fundamentally beats
+RLVR on capacity preservation remains open; a fair test would need
+compute-matched training (e.g. an RL run capped at a similar wall-clock/FLOP
+budget to this ES run) rather than comparing against an already fully-trained
+public checkpoint.
+
+Raw generations for all three arms: `results/iter50/{base,trained,rl}/`.
+`base`/`trained` are gitignored (regenerate with
+`scripts/run_base_vs_trained_eval.sh`); `results/iter50/rl/` (~1GB) is
+committed as-is for convenience despite the gitignore rule — plan to
+`git rm -r --cached` it in a follow-up cleanup pass.
 
 ## Training dynamics
 
@@ -252,8 +273,13 @@ The ES-trained checkpoint is published at
 
 ## Later
 
-- Extend the RL (SimpleRL-Zoo) arm from k≤32 to the full k=128 budget (see
-  "Important open question" above) — the highest-value next step.
+- The ES-vs-RL comparison above isn't compute-matched (SimpleRL-Zoo is fully
+  trained; this ES run is 50 iterations / 3h22m). A fair test needs an RL
+  baseline capped at similar compute, not a comparison against an already
+  fully-trained public checkpoint — the highest-value next step given the
+  full-budget result didn't confirm the original hypothesis as cleanly as
+  hoped.
 - A fourth arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
-  LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES) is planned
-  once the RL comparison above is resolved.
+  LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES).
+- Clean up `results/iter50/rl/` out of git history once downloaded locally
+  (see note in Results above).
