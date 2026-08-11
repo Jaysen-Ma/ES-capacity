@@ -19,7 +19,7 @@ papers' code.
 Both forks' `main` are kept as unmodified mirrors of upstream; all changes
 live on the branches above so they can be sent upstream as PRs later.
 
-## Experiment 1: Qwen2.5-1.5B base vs. ES-at-scale-trained
+## Experiment 1: Qwen2.5-1.5B base vs. ES-at-scale-trained (done)
 
 | Param | Value |
 |---|---|
@@ -69,56 +69,59 @@ scripts/run_third_model_full_suite.sh <third-model-dir> rl iter50 [n_sampling_ov
 `convert_to_hf.py` first, if starting from a raw `es-at-scale` checkpoint —
 see [Model](#model) below.
 
+## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (next)
+
+Same approach as Experiment 1 — Qiu et al. `es-at-scale`, `math_lvl3to5_8k`
+(SimpleRL-Zoo-matched data) — scaled to the 7B base model. Not yet run;
+sigma/population/iterations likely need retuning for 7B's larger memory
+footprint on the same 8x RTX 4090 48GB box.
+
 ## Results
 
-Four benchmarks (AIME24, MATH500, Minerva Math, OlympiadBench), identical
-generation settings across every model compared on a given benchmark
-(`temperature=0.6`, `top_p=0.95`, `max_tokens=2048`, `qwen-boxed` template,
-`seed=1` — enforced by shared wrapper scripts so runs can't drift:
-`scripts/run_base_vs_trained_eval.sh`, `scripts/run_third_model_eval.sh`).
-`n_sampling` (= max k) is 512 for AIME24, 128 for the other three — matching
-this project's established convention, and each benchmark's full data range
-gets its own pass@k curve (not truncated to a shared minimum).
+Three models compared on four benchmarks (AIME24, MATH500, Minerva Math,
+OlympiadBench) at identical generation settings throughout (`temperature=0.6`,
+`top_p=0.95`, `max_tokens=2048`, `qwen-boxed` template, `seed=1` — enforced by
+shared wrapper scripts so runs can't drift: `scripts/run_base_vs_trained_eval.sh`,
+`scripts/run_third_model_eval.sh`). `n_sampling` (= max k) is 512 for AIME24,
+128 for the rest; each benchmark's full data range gets its own pass@k curve.
 
-### ES vs. base
-
-**On every one of the 4 benchmarks, the ES-trained model stays above the base
-model across the entire k range tested — no crossover, unlike the
-pass@k-ceiling-narrowing pattern the source RLVR paper documents for
-gradient-based methods.**
+- **Base**: `Qwen/Qwen2.5-1.5B`
+- **ES**: this project's Experiment 1 checkpoint
+- **RL**: [hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo),
+  a real published GRPO-trained model, same base and (matched) training data
 
 <table>
 <tr>
 <td>
 
-| k | Base | ES-trained |
-|---|---|---|
-| 1 | 0.28% | 0.87% |
-| 2 | 0.55% | 1.68% |
-| 4 | 1.08% | 3.14% |
-| 8 | 2.05% | 5.57% |
-| 16 | 3.74% | 9.04% |
-| 32 | 6.38% | 13.09% |
-| 64 | 10.01% | 17.45% |
-| 128 | 14.59% | 22.91% |
-| 256 | 19.33% | 30.00% |
-| 512 | 23.33% | 36.67% |
+| k | Base | ES | RL |
+|---|---|---|---|
+| 1 | 0.28% | 0.87% | 0.87% |
+| 2 | 0.55% | 1.68% | 1.69% |
+| 4 | 1.08% | 3.14% | 3.16% |
+| 8 | 2.05% | 5.57% | 5.63% |
+| 16 | 3.74% | 9.04% | 9.27% |
+| 32 | 6.38% | 13.09% | 14.03% |
+| 64 | 10.01% | 17.45% | 20.10% |
+| 128 | 14.59% | 22.91% | 28.41% |
+| 256 | 19.33% | 30.00% | 39.39% |
+| 512 | 23.33% | 36.67% | 50.00% |
 
 **AIME24** (30 questions, n=512)
 
 </td>
 <td>
 
-| k | Base | ES-trained |
-|---|---|---|
-| 1 | 5.37% | 16.79% |
-| 2 | 9.90% | 27.79% |
-| 4 | 17.53% | 41.69% |
-| 8 | 28.93% | 56.05% |
-| 16 | 43.27% | 68.24% |
-| 32 | 57.76% | 77.26% |
-| 64 | 69.76% | 83.92% |
-| 128 | 78.60% | 89.20% |
+| k | Base | ES | RL |
+|---|---|---|---|
+| 1 | 5.37% | 16.79% | 13.35% |
+| 2 | 9.90% | 27.79% | 23.28% |
+| 4 | 17.53% | 41.69% | 37.37% |
+| 8 | 28.93% | 56.05% | 53.52% |
+| 16 | 43.27% | 68.24% | 67.70% |
+| 32 | 57.76% | 77.26% | 77.81% |
+| 64 | 69.76% | 83.92% | 84.71% |
+| 128 | 78.60% | 89.20% | 90.00% |
 
 **MATH500** (500 questions, n=128)
 
@@ -127,32 +130,32 @@ gradient-based methods.**
 <tr>
 <td>
 
-| k | Base | ES-trained |
-|---|---|---|
-| 1 | 1.79% | 2.83% |
-| 2 | 3.41% | 5.23% |
-| 4 | 6.26% | 9.13% |
-| 8 | 10.80% | 14.75% |
-| 16 | 17.15% | 21.65% |
-| 32 | 24.59% | 28.99% |
-| 64 | 32.41% | 36.43% |
-| 128 | 40.44% | 43.75% |
+| k | Base | ES | RL |
+|---|---|---|---|
+| 1 | 1.79% | 2.83% | 3.72% |
+| 2 | 3.41% | 5.23% | 6.79% |
+| 4 | 6.26% | 9.13% | 11.62% |
+| 8 | 10.80% | 14.75% | 18.19% |
+| 16 | 17.15% | 21.65% | 25.74% |
+| 32 | 24.59% | 28.99% | 33.42% |
+| 64 | 32.41% | 36.43% | 40.68% |
+| 128 | 40.44% | 43.75% | 47.43% |
 
 **Minerva Math** (272 questions, n=128)
 
 </td>
 <td>
 
-| k | Base | ES-trained |
-|---|---|---|
-| 1 | 2.10% | 6.17% |
-| 2 | 3.96% | 10.60% |
-| 4 | 7.18% | 16.84% |
-| 8 | 12.21% | 24.43% |
-| 16 | 19.10% | 32.43% |
-| 32 | 27.24% | 40.12% |
-| 64 | 35.86% | 47.36% |
-| 128 | 44.74% | 54.22% |
+| k | Base | ES | RL |
+|---|---|---|---|
+| 1 | 2.10% | 6.17% | 5.41% |
+| 2 | 3.96% | 10.60% | 9.67% |
+| 4 | 7.18% | 16.84% | 16.04% |
+| 8 | 12.21% | 24.43% | 24.12% |
+| 16 | 19.10% | 32.43% | 32.64% |
+| 32 | 27.24% | 40.12% | 40.60% |
+| 64 | 35.86% | 47.36% | 47.84% |
+| 128 | 44.74% | 54.22% | 54.22% |
 
 **OlympiadBench** (675 questions, n=128)
 
@@ -160,37 +163,14 @@ gradient-based methods.**
 </tr>
 </table>
 
-![AIME24 pass@k](results/iter50/aime24_passk.png) ![MATH500 pass@k](results/iter50/math500_passk.png) ![Minerva pass@k](results/iter50/minerva_math_passk.png) ![OlympiadBench pass@k](results/iter50/olympiadbench_passk.png)
+![AIME24 pass@k](results/iter50/aime24_threeway_passk.png) ![MATH500 pass@k](results/iter50/math500_threeway_passk.png) ![Minerva pass@k](results/iter50/minerva_math_threeway_passk.png) ![OlympiadBench pass@k](results/iter50/olympiadbench_threeway_passk.png)
 
-Four-way solvable/unsolvable breakdown per benchmark ("solvable" = at least 1
-of `n_sampling` completions correct):
-
-| Benchmark | Both solve | Base solves, ES fails (narrowed) | Base fails, ES solves (gained) | Neither | Net (gain − narrow) |
-|---|---|---|---|---|---|
-| AIME24 (n=30) | 23.3% | 0.0% | 13.3% | 63.3% | **+13.3** |
-| MATH500 (n=500) | 77.2% | 1.4% | 12.0% | 9.4% | **+10.6** |
-| Minerva (n=272) | 33.5% | 7.0% | 10.3% | 49.3% | **+3.3** |
-| OlympiadBench (n=675) | 40.9% | 3.9% | 13.3% | 41.9% | **+9.4** |
-
-Every benchmark nets positive — gains consistently outweigh losses, most
-dramatically on AIME24 where ES loses *zero* questions base could solve while
-gaining 13.3%. Combined with no pass@k crossover on any benchmark, this is
-consistent with genuine capacity expansion, not the sampling-efficiency-for-
-ceiling tradeoff RLVR typically shows.
-
-### Base vs. ES vs. RL (SimpleRL-Zoo) — full budget
-
-Added [hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo)
-(a real, published GRPO-trained model, same `Qwen2.5-1.5B` base) as a third
-arm, to check the ES-vs-RLVR hypothesis head-to-head rather than only against
-the source paper's qualitative description. RL now matches base/ES's full
-budget exactly (k up to 512 for AIME24, 128 for the rest — an initial cheap
-k≤32 check was run first and superseded by this full run, see git history if
-curious).
-
-**The full-budget result does not confirm the pattern the k≤32 partial check
-suggested.** At the full budget, RL narrows *less* than ES on 3 of 4
-benchmarks, and matches or exceeds ES's net question-coverage gain on all 4:
+**ES vs. base: no crossover on any of the 4 benchmarks** — ES stays above
+base across the entire k range tested, unlike the pass@k-ceiling-narrowing
+pattern the source RLVR paper documents for gradient-based methods.
+Solvable/unsolvable breakdown ("solvable" = at least 1 of `n_sampling`
+completions correct) confirms this nets positive everywhere, gains
+consistently outweighing losses:
 
 | Benchmark | ES: narrow / gain / **net** | RL: narrow / gain / **net** |
 |---|---|---|
@@ -199,40 +179,27 @@ benchmarks, and matches or exceeds ES's net question-coverage gain on all 4:
 | Minerva | 7.0% / 10.3% / **+3.3** | 5.5% / 12.5% / **+7.0** |
 | OlympiadBench | 3.9% / 13.3% / **+9.4** | 3.4% / 12.9% / **+9.5** |
 
-![AIME24 three-way](results/iter50/aime24_threeway_passk.png) ![MATH500 three-way](results/iter50/math500_threeway_passk.png) ![Minerva three-way](results/iter50/minerva_math_threeway_passk.png) ![OlympiadBench three-way](results/iter50/olympiadbench_threeway_passk.png)
-
-There's also no consistent "RL ahead at low k, base/ES catch up and overtake
-at high k" crossover — the classic pattern the source paper documents — in
-any of the 4 curves. What actually happens varies per benchmark:
+**ES vs. RL is a mixed picture, not a clean win for either.** RL narrows
+*less* than ES on 3 of 4 benchmarks and matches or exceeds ES's net gain on
+all 4. No consistent crossover pattern either:
 
 - **AIME24**: RL and ES are essentially tied through k≈16, then RL's lead
-  *grows* with k, reaching pass@512 = 50.0% vs ES's 36.7%. The opposite of
-  the paper's expected shape (n=30 questions here, so this curve is the
-  noisiest of the four — a small sample of hard problems where a handful of
-  lucky high-k hits move the numbers a lot).
-- **MATH500**: RL actually starts *below* ES at low k (pass@1: 13.4% vs
-  16.8%), crosses over around k≈16-32, and finishes slightly ahead at k=128
-  (90.0% vs 89.2%) — a real crossover, but inverted from the paper's story.
-- **Minerva**: RL stays above ES at every k from 1 to 128 — gap starts small
-  (+0.9 point at k=1), grows through the mid-range, plateaus around +3.5 to
-  +4.4 points by k≥16 — no crossover either direction.
-- **OlympiadBench**: the two are close throughout (within ±1 point), RL
-  slightly behind at low k, converging to a near-exact tie by k=128.
+  *grows* with k, reaching pass@512 = 50.0% vs ES's 36.7% (n=30 questions
+  here, so the noisiest of the four benchmarks).
+- **MATH500**: RL starts *below* ES at low k (pass@1: 13.4% vs 16.8%),
+  crosses over around k≈16-32, finishes slightly ahead at k=128 (90.0% vs
+  89.2%).
+- **Minerva**: RL stays above ES at every k from 1 to 128, gap plateauing
+  around +3.5 to +4.4 points by k≥16.
+- **OlympiadBench**: the two stay close throughout (within ±1 point),
+  converging to a near-exact tie by k=128.
 
-**Read this carefully — it's not a compute-matched comparison.** SimpleRL-Zoo
-is a mature, fully-trained public model; this project's ES run is 50
-iterations / 3h22m on one 8-GPU box. The full result doesn't support "ES
-preserves capability better than RLVR in general" as cleanly as the k≤32
-partial check suggested — if anything, in this specific (compute-mismatched)
-comparison, RL matches or slightly outperforms ES on capability
-preservation, contrary to the project's original hypothesis. What *does*
-survive from the ES-vs-base section above: ES itself shows no crossover and
-a clean net-positive result relative to the base model on all 4 benchmarks —
-that finding is unaffected by anything here. Whether ES fundamentally beats
-RLVR on capacity preservation remains open; a fair test would need
-compute-matched training (e.g. an RL run capped at a similar wall-clock/FLOP
-budget to this ES run) rather than comparing against an already fully-trained
-public checkpoint.
+**Not a compute-matched comparison.** SimpleRL-Zoo is a mature, fully-trained
+public model; this project's ES run is 50 iterations / 3h22m on one 8-GPU
+box. RL matching or slightly outperforming ES here doesn't rule out ES
+preserving capacity better under matched compute — that comparison hasn't
+been run yet. What does hold regardless: ES itself shows no crossover and a
+clean net-positive result relative to the base model on all 4 benchmarks.
 
 Raw generations for all three arms: `results/iter50/{base,trained,rl}/`.
 `base`/`trained` are gitignored (regenerate with
@@ -273,12 +240,10 @@ The ES-trained checkpoint is published at
 
 ## Later
 
-- The ES-vs-RL comparison above isn't compute-matched (SimpleRL-Zoo is fully
-  trained; this ES run is 50 iterations / 3h22m). A fair test needs an RL
-  baseline capped at similar compute, not a comparison against an already
-  fully-trained public checkpoint — the highest-value next step given the
-  full-budget result didn't confirm the original hypothesis as cleanly as
-  hoped.
+- Experiment 2 (7B, above) is next.
+- A compute-matched RL baseline (capped at similar wall-clock/FLOP budget to
+  the ES run, rather than comparing against an already fully-trained public
+  checkpoint) would make the ES-vs-RL comparison fair — currently open.
 - A fourth arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
   LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES).
 - Clean up `results/iter50/rl/` out of git history once downloaded locally
