@@ -54,10 +54,17 @@ python -m es_at_scale.train \
   --population-size 32 \
   --n-iterations 50 \
   --train-dataset datasets/train/math_lvl3to5_8k \
+  --eval-dataset datasets/evaluation_suite/math \
   --batch-size 256 --mini-batch-size 256 \
   --max-tokens 2048 \
   --n-vllm-engines 8 --use-gpus 0,1,2,3,4,5,6,7
 ```
+`--eval-dataset` matters even though this README's reported pass@k numbers
+come from a separate eval pass (below), not the trainer's own in-loop eval —
+omit it and it silently defaults to the `countdown` task's eval set, which
+has no `problem` field and crashes the trainer the moment anything touches
+the eval dataloader (e.g. resuming training from a checkpoint, see Experiment
+2 below).
 
 Evaluate (base, ES-trained, and any third arm, all through identical
 settings, sharded across every GPU — `n_sampling` = 512 for AIME24, 128 for
@@ -264,10 +271,15 @@ python -m es_at_scale.train \
   --population-size 32 \
   --n-iterations 50 \
   --train-dataset datasets/train/math_lvl3to5_8k \
+  --eval-dataset datasets/evaluation_suite/math \
   --batch-size 256 --mini-batch-size 256 \
   --max-tokens 2048 \
   --n-vllm-engines 8 --use-gpus 0,1,2,3,4,5,6,7
 ```
+See the `--eval-dataset` note under Experiment 1 above — it's easy to forget
+since this run doesn't crash without it (only a later `--checkpoint` resume
+does), but the trainer's in-loop eval would still silently be scoring the
+wrong task.
 
 Evaluate — same wrappers and same fixed settings as Experiment 1, with the 7B
 base passed explicitly as the trailing `base_model_dir`:
