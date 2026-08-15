@@ -229,11 +229,10 @@ been run yet. What does hold regardless, at this scale: ES itself shows no
 crossover and a clean net-positive result relative to the base model on all 4
 benchmarks.
 
-Raw generations for all three arms: `results/iter50/{base,trained,rl}/`.
-`base`/`trained` are gitignored (regenerate with
-`scripts/run_base_vs_trained_eval.sh`); `results/iter50/rl/` (~1GB) is
-committed as-is for convenience despite the gitignore rule — plan to
-`git rm -r --cached` it in a follow-up cleanup pass.
+Raw generations for all three arms (`results/iter50/{base,trained,rl}/`) are
+gitignored — only the summaries and plots above are committed. Regenerate
+`base`/`trained` with `scripts/run_base_vs_trained_eval.sh` and `rl` with
+`scripts/run_third_model_eval.sh`.
 
 ## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (done)
 
@@ -439,9 +438,10 @@ a small intervention and moved neither. It also means Experiment 2's AIME24
 narrowing is not part of some general degradation — nothing outside math
 regressed.
 
-Raw `lm_eval` output (results + per-sample logs) for all 6 arms:
-`results/gpqa_diamond/`. Driver: `/workspace/run_gpqa_sweep.sh` (single GPU,
-vLLM backend, ~1.5 min/model).
+`lm_eval` score summaries for all 6 arms: `results/gpqa_diamond/*/*/results_*.json`.
+The per-sample dumps alongside them (`samples_*.jsonl`) are gitignored — they
+reproduce the benchmark text verbatim. Driver: `/workspace/run_gpqa_sweep.sh`
+(single GPU, vLLM backend, ~1.5 min/model).
 
 ## Training dynamics
 
@@ -547,5 +547,3 @@ the same way from `checkpoint-es_fine_tuned_iteration_50/pytorch_model.pth`,
 - Publish the 7B checkpoint (see [Model](#model)).
 - A fourth arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
   LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES).
-- Clean up `results/iter50/rl/` out of git history once downloaded locally
-  (see note in Results above).
