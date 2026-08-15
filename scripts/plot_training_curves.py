@@ -5,11 +5,11 @@ Plots the 4 training-dynamics curves from the ES training run's W&B history:
   3. train/response-length: min/mean/max vs. iteration, one plot
   4. train/response-length/std vs. iteration
 
-Usage (from a saved CSV, e.g. results/iter50/training_curves.csv):
-    python plot_training_curves.py --csv results/iter50/training_curves.csv --out-dir results/iter50
+Usage (from a saved CSV, e.g. results/iter50-1.5b/training_curves.csv):
+    python plot_training_curves.py --csv results/iter50-1.5b/training_curves.csv --out-dir results/iter50-1.5b
 
 Or fetch fresh from W&B:
-    python plot_training_curves.py --wandb-run chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50
+    python plot_training_curves.py --wandb-run chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50-1.5b
 """
 import argparse
 import os

@@ -11,8 +11,8 @@
 # Usage:
 #   ./run_third_model_eval.sh <model_dir> <label> <run_tag> [n_sampling_override]
 # e.g.
-#   ./run_third_model_eval.sh /workspace/.hf_home/.../SimpleRL-Zoo/snapshots/<hash> rl iter50
-#   ./run_third_model_eval.sh <hash> rl iter50 32   # same n_sampling=32 for all 4 benchmarks
+#   ./run_third_model_eval.sh /workspace/.hf_home/.../SimpleRL-Zoo/snapshots/<hash> rl iter50-1.5b
+#   ./run_third_model_eval.sh <hash> rl iter50-1.5b 32   # same n_sampling=32 for all 4 benchmarks
 #
 # n_sampling_override, if given, replaces every benchmark's n_sampling below
 # (e.g. for a cheap "does it already cross at low k" check before committing

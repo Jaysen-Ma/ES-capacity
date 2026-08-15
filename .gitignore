@@ -70,10 +70,11 @@ results/*/*.log
 results/*_run.log
 outputs/
 
-# Raw per-sample lm-eval-harness dumps (~2.6MB each, and they embed the verbatim
-# benchmark text — which is how a presigned S3 URL in the GPQA corpus once tripped
-# GitHub secret scanning). The results_*.json score summaries alongside them stay.
-results/gpqa_diamond/*/*/samples_*.jsonl
+# lm-eval-harness output for the GPQA sweep. The scores are in results/README.md;
+# the raw tree is machine-named, reproducible in ~9min via run_gpqa_sweep.sh, and
+# its samples_*.jsonl embed the verbatim benchmark text (a presigned S3 URL in the
+# GPQA corpus once tripped GitHub secret scanning that way).
+results/gpqa_diamond/
 
 # Transient per-shard model copies from run_sharded_eval.sh (cleaned up on
 # exit via its EXIT trap; ignored defensively in case a run dies uncleanly)

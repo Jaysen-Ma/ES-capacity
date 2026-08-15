@@ -14,6 +14,11 @@ documents, now showing up in gradient-free ES. Separately, GPQA-diamond finds
 no forgetting at either scale, and one unexplained *gain*
 ([below](#out-of-domain-check-gpqa-diamond)).
 
+The RL arm throughout is a published SimpleRL-Zoo checkpoint, which saw
+**~12 epochs of the shared 8K training set against this ES run's ~1.5**
+([arithmetic](#results--experiment-1-qwen25-15b)) — so read every ES-vs-RL
+row as ES on an ~8x smaller data budget, not as a matched comparison.
+
 Training and evaluation run from forked, patched copies of the original
 papers' code.
 
@@ -71,15 +76,15 @@ settings, sharded across every GPU — `n_sampling` = 512 for AIME24, 128 for
 the rest):
 ```bash
 cd ES-capacity
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50 aime24 512
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50 math500 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50 minerva_math 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50 olympiadbench 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b aime24 512
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b math500 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b minerva_math 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b olympiadbench 128
 # or all 4 at once:
-scripts/run_full_eval_suite.sh <path-to-hf-checkpoint> iter50
+scripts/run_full_eval_suite.sh <path-to-hf-checkpoint> iter50-1.5b
 
 # third-arm (e.g. an RL baseline), reusing the base model's already-computed outputs:
-scripts/run_third_model_full_suite.sh <third-model-dir> rl iter50 [n_sampling_override]
+scripts/run_third_model_full_suite.sh <third-model-dir> rl iter50-1.5b [n_sampling_override]
 ```
 `convert_to_hf.py` first, if starting from a raw `es-at-scale` checkpoint —
 see [Model](#model) below. Both wrappers take an optional trailing
@@ -117,78 +122,16 @@ shared wrapper scripts so runs can't drift: `scripts/run_base_vs_trained_eval.sh
 
 <table>
 <tr>
-<td>
-
-| k | Base | ES | RL |
-|---|---|---|---|
-| 1 | 0.28% | 0.87% | 0.87% |
-| 2 | 0.55% | 1.68% | 1.69% |
-| 4 | 1.08% | 3.14% | 3.16% |
-| 8 | 2.05% | 5.57% | 5.63% |
-| 16 | 3.74% | 9.04% | 9.27% |
-| 32 | 6.38% | 13.09% | 14.03% |
-| 64 | 10.01% | 17.45% | 20.10% |
-| 128 | 14.59% | 22.91% | 28.41% |
-| 256 | 19.33% | 30.00% | 39.39% |
-| 512 | 23.33% | 36.67% | 50.00% |
-
-**AIME24** (30 questions, n=512)
-
-</td>
-<td>
-
-| k | Base | ES | RL |
-|---|---|---|---|
-| 1 | 5.37% | 16.79% | 13.35% |
-| 2 | 9.90% | 27.79% | 23.28% |
-| 4 | 17.53% | 41.69% | 37.37% |
-| 8 | 28.93% | 56.05% | 53.52% |
-| 16 | 43.27% | 68.24% | 67.70% |
-| 32 | 57.76% | 77.26% | 77.81% |
-| 64 | 69.76% | 83.92% | 84.71% |
-| 128 | 78.60% | 89.20% | 90.00% |
-
-**MATH500** (500 questions, n=128)
-
-</td>
+<td><img src="results/iter50-1.5b/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k"></td>
+<td><img src="results/iter50-1.5b/math500_threeway_passk.png" width="390" alt="MATH500 pass@k"></td>
 </tr>
 <tr>
-<td>
-
-| k | Base | ES | RL |
-|---|---|---|---|
-| 1 | 1.79% | 2.83% | 3.72% |
-| 2 | 3.41% | 5.23% | 6.79% |
-| 4 | 6.26% | 9.13% | 11.62% |
-| 8 | 10.80% | 14.75% | 18.19% |
-| 16 | 17.15% | 21.65% | 25.74% |
-| 32 | 24.59% | 28.99% | 33.42% |
-| 64 | 32.41% | 36.43% | 40.68% |
-| 128 | 40.44% | 43.75% | 47.43% |
-
-**Minerva Math** (272 questions, n=128)
-
-</td>
-<td>
-
-| k | Base | ES | RL |
-|---|---|---|---|
-| 1 | 2.10% | 6.17% | 5.41% |
-| 2 | 3.96% | 10.60% | 9.67% |
-| 4 | 7.18% | 16.84% | 16.04% |
-| 8 | 12.21% | 24.43% | 24.12% |
-| 16 | 19.10% | 32.43% | 32.64% |
-| 32 | 27.24% | 40.12% | 40.60% |
-| 64 | 35.86% | 47.36% | 47.84% |
-| 128 | 44.74% | 54.22% | 54.22% |
-
-**OlympiadBench** (675 questions, n=128)
-
-</td>
+<td><img src="results/iter50-1.5b/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k"></td>
+<td><img src="results/iter50-1.5b/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k"></td>
 </tr>
 </table>
 
-![AIME24 pass@k](results/iter50/aime24_threeway_passk.png) ![MATH500 pass@k](results/iter50/math500_threeway_passk.png) ![Minerva pass@k](results/iter50/minerva_math_threeway_passk.png) ![OlympiadBench pass@k](results/iter50/olympiadbench_threeway_passk.png)
+Per-k numbers for all three arms: **[results/README.md](results/README.md)**.
 
 **ES vs. base: no crossover on any of the 4 benchmarks** — ES stays above
 base across the entire k range tested, unlike the pass@k-ceiling-narrowing
@@ -221,18 +164,29 @@ all 4. No consistent crossover pattern either:
 - **OlympiadBench**: the two stay close throughout (within ±1 point),
   converging to a near-exact tie by k=128.
 
-**Not a compute-matched comparison.** SimpleRL-Zoo is a mature, fully-trained
-public model; this project's ES run is 50 iterations / 3h22m on one 8-GPU
-box. RL matching or slightly outperforming ES here doesn't rule out ES
-preserving capacity better under matched compute — that comparison hasn't
-been run yet. What does hold regardless, at this scale: ES itself shows no
-crossover and a clean net-positive result relative to the base model on all 4
-benchmarks.
+**Not a compute-matched comparison — and the gap is roughly 8x.** Both arms
+train on the same 8K MATH lvl3-5 set, but they see it a very different number
+of times:
 
-Raw generations for all three arms (`results/iter50/{base,trained,rl}/`) are
-gitignored — only the summaries and plots above are committed. Regenerate
-`base`/`trained` with `scripts/run_base_vs_trained_eval.sh` and `rl` with
-`scripts/run_third_model_eval.sh`.
+| | Prompts/step | Steps | Prompt-exposures | **Epochs over the 8K set** | Generations |
+|---|---|---|---|---|---|
+| **ES** (this run) | 256 | 50 | 12,800 | **~1.5** | 409,600 (x32 population) |
+| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 102,400 | **~12** | 819,200 (x8 rollouts) |
+
+SimpleRL-Zoo's published recipe is "a prompt batch size of 1,024 and 8 rollouts
+per prompt" over "approximately 8,000 problems" (arXiv:2503.18892 §B.5, §3.2),
+and its Qwen2.5-1.5B training curves run to ~100 steps — so the released
+checkpoint has made **~12 passes over the data where this ES run made ~1.5**,
+at ~2x the raw generation count. (Step count is read off their per-model
+figures, so treat it as approximate; the paper does not state RL epochs
+directly.)
+
+That reframes the ES-vs-RL rows above: RL matching or slightly beating ES here
+is what an 8x larger data budget should buy. It doesn't rule out ES preserving
+capacity better under matched compute — that comparison still hasn't been run.
+What holds regardless, at this scale: ES itself shows no crossover and a clean
+net-positive result relative to the base model on all 4 benchmarks, off ~1.5
+epochs.
 
 ## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (done)
 
@@ -257,7 +211,7 @@ property of a small, weak base model with a lot of headroom.
 | vLLM engines | 8 (one per GPU) |
 | GPUs | 0-7 (8x RTX 4090 48GB) |
 | Training wall-clock | 4h 35m 33s (~300s/iteration, near-constant; includes the baseline and final eval passes the training script runs itself) |
-| W&B | none (`--logging none`) — per-iteration stats come from the stdout log, `es-at-scale/qwen7b-math-run.log` |
+| W&B | none (`--logging none`) — per-iteration stats come from the trainer's stdout, kept in the `es-at-scale` working tree, not this repo |
 
 Train:
 ```bash
@@ -289,7 +243,6 @@ scripts/run_full_eval_suite.sh \
   iter50-7b \
   /workspace/.hf_home/hub/models--Qwen--Qwen2.5-7B/snapshots/d149729398750b98c0af14eb82c78cfe92750796
 ```
-Full run log: `eval_suite_7b.log`.
 
 ### Evaluation wall-clock
 
@@ -332,7 +285,16 @@ ahead:
 | Minerva (n=272, k≤128) | 23.14% → 26.99% | 65.81% → 65.81% | 2.9% / 2.9% / **0.0** |
 | OlympiadBench (n=675, k≤128) | 27.95% → 32.39% | 74.67% → 76.30% | 3.4% / 5.0% / **+1.6** |
 
-![AIME24 pass@k (7B)](results/iter50-7b/aime24_passk.png) ![MATH500 pass@k (7B)](results/iter50-7b/math500_passk.png) ![Minerva pass@k (7B)](results/iter50-7b/minerva_math_passk.png) ![OlympiadBench pass@k (7B)](results/iter50-7b/olympiadbench_passk.png)
+<table>
+<tr>
+<td><img src="results/iter50-7b/aime24_passk.png" width="390" alt="AIME24 pass@k (7B)"></td>
+<td><img src="results/iter50-7b/math500_passk.png" width="390" alt="MATH500 pass@k (7B)"></td>
+</tr>
+<tr>
+<td><img src="results/iter50-7b/minerva_math_passk.png" width="390" alt="Minerva pass@k (7B)"></td>
+<td><img src="results/iter50-7b/olympiadbench_passk.png" width="390" alt="OlympiadBench pass@k (7B)"></td>
+</tr>
+</table>
 
 The shape is clearest as ES − base in points, per k:
 
@@ -375,10 +337,6 @@ ES budget is a proportionally smaller intervention on a 7B model. Some of the
 shrinking net gain is that, not necessarily "ES stops working at scale". What
 this cannot explain is AIME24, where the ceiling *dropped* by 10 points — that
 is capability loss, not saturation.
-
-Raw generations: `results/iter50-7b/{base,trained}/` (gitignored — regenerate
-with the suite command above). Summaries and plots for both arms are
-committed: `results/iter50-7b/*_summary.json`, `*_passk.png`.
 
 ### The two experiments together
 
@@ -438,10 +396,8 @@ a small intervention and moved neither. It also means Experiment 2's AIME24
 narrowing is not part of some general degradation — nothing outside math
 regressed.
 
-`lm_eval` score summaries for all 6 arms: `results/gpqa_diamond/*/*/results_*.json`.
-The per-sample dumps alongside them (`samples_*.jsonl`) are gitignored — they
-reproduce the benchmark text verbatim. Driver: `/workspace/run_gpqa_sweep.sh`
-(single GPU, vLLM backend, ~1.5 min/model).
+Driver: `scripts/run_gpqa_sweep.sh` (single GPU, vLLM backend, ~1.5 min/model,
+~9 min for the sweep). Per-arm scores: [results/README.md](results/README.md).
 
 ## Training dynamics
 
@@ -450,12 +406,16 @@ reproduce the benchmark text verbatim. Driver: `/workspace/run_gpqa_sweep.sh`
 Per-iteration stats logged to W&B during training (min/mean/max across the
 population of 32, plus std), reward and response length:
 
-<table><tr>
-<td><img src="results/iter50/train_reward_minmeanmax.png" width="200"></td>
-<td><img src="results/iter50/train_reward_std.png" width="200"></td>
-<td><img src="results/iter50/train_response_length_minmeanmax.png" width="200"></td>
-<td><img src="results/iter50/train_response_length_std.png" width="200"></td>
-</tr></table>
+<table>
+<tr>
+<td><img src="results/iter50-1.5b/train_reward_minmeanmax.png" width="390" alt="reward min/mean/max"></td>
+<td><img src="results/iter50-1.5b/train_reward_std.png" width="390" alt="reward std"></td>
+</tr>
+<tr>
+<td><img src="results/iter50-1.5b/train_response_length_minmeanmax.png" width="390" alt="response length min/mean/max"></td>
+<td><img src="results/iter50-1.5b/train_response_length_std.png" width="390" alt="response length std"></td>
+</tr>
+</table>
 
 Reward climbs steadily and plateaus around iteration ~25-30. Response length
 falls the whole time — from a population mean of ~1700 tokens at iteration 0
@@ -466,14 +426,14 @@ landscape) and then decay, consistent with the population converging on a
 consistent style/strategy rather than staying diffuse.
 
 Regenerate with `scripts/plot_training_curves.py --wandb-run
-chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50` (or
-`--csv results/iter50/training_curves.csv` from the saved snapshot).
+chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50-1.5b` (or
+`--csv results/iter50-1.5b/training_curves.csv` from the saved snapshot).
 
 ### Experiment 2 (7B)
 
 This run was launched with `--logging none`, so there is no W&B run to plot
 from; the per-iteration population stats are in the stdout log
-(`es-at-scale/qwen7b-math-run.log`, `Mean reward:` lines). Summary of the 51
+(the `Mean reward:` lines of the trainer's stdout). Summary of the 51
 iterations:
 
 | | Iter 1 | Iter 10 | Iter 25 | Iter 51 |
@@ -511,15 +471,13 @@ settings, same direction).
 
 ## Model
 
-The Experiment 1 ES-trained checkpoint is published at
-[zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math)
-(HF format, converted from the raw `es-at-scale` checkpoint with
-`scripts/convert_to_hf.py --verify`).
+Both ES-trained checkpoints are published, in HF format, converted from the raw
+`es-at-scale` checkpoints with `scripts/convert_to_hf.py --verify`:
 
-The Experiment 2 (7B) checkpoint has not been published yet — it lives locally
-at `es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50` (converted
-the same way from `checkpoint-es_fine_tuned_iteration_50/pytorch_model.pth`,
-~15GB raw).
+| Experiment | Checkpoint |
+|---|---|
+| 1 (1.5B) | [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
+| 2 (7B) | [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) |
 
 ## Later
 
@@ -544,6 +502,5 @@ the same way from `checkpoint-es_fine_tuned_iteration_50/pytorch_model.pth`,
   the ES run, rather than comparing against an already fully-trained public
   checkpoint) would make the ES-vs-RL comparison fair — currently open at both
   scales.
-- Publish the 7B checkpoint (see [Model](#model)).
 - A fourth arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
   LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES).
