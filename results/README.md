@@ -15,7 +15,7 @@ template, `seed=1`.
 |---|---|
 | `iter50-1.5b/*_threeway_summary.json`, `*_threeway_passk.png` | Experiment 1 — base vs. ES vs. RL |
 | `iter50-1.5b/*_summary.json`, `*_passk.png` | Experiment 1 — base vs. ES only (superseded by the three-way files) |
-| `iter50-1.5b/train_*.png`, `training_curves.csv` | Experiment 1 training dynamics |
+| `iter50-1.5b/training_curves.csv`, `train_*.png` | Experiment 1 per-iteration W&B series (reward + response length) and its plots. The top-level README reports these as a table instead, since Experiment 2 ran with `--logging none` and has no W&B counterpart. |
 | `iter50-7b/*_summary.json`, `*_passk.png` | Experiment 2 — base vs. ES |
 
 Raw per-shard generations (`iter50-1.5b/{base,trained,rl}/`,

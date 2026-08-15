@@ -15,9 +15,10 @@ no forgetting at either scale, and one unexplained *gain*
 ([below](#out-of-domain-check-gpqa-diamond)).
 
 The RL arm throughout is a published SimpleRL-Zoo checkpoint, which saw
-**~12 epochs of the shared 8K training set against this ES run's ~1.5**
-([arithmetic](#results--experiment-1-qwen25-15b)) — so read every ES-vs-RL
-row as ES on an ~8x smaller data budget, not as a matched comparison.
+**12.01 epochs of the shared 8,523-problem training set against this ES run's
+1.50** ([arithmetic](#results--experiment-1-qwen25-15b)) — so read every
+ES-vs-RL row as ES on an exactly 8x smaller data budget, not as a matched
+comparison.
 
 Training and evaluation run from forked, patched copies of the original
 papers' code.
@@ -42,7 +43,7 @@ live on the branches above so they can be sent upstream as PRs later.
 | alpha (lr) | auto (`sigma/2` = 0.0005, `es-at-scale`'s default when `--alpha` is unset) |
 | Population size | 32 |
 | Iterations | 50 |
-| Train dataset | `math_lvl3to5_8k` (matches SimpleRL-Zoo's training set) |
+| Train dataset | `math_lvl3to5_8k` — the same 8,523 problems, in the same order, as SimpleRL-Zoo's `simplelr_qwen_level3to5` split (verified against their released parquet) |
 | Batch size / mini-batch size | 256 / 256 |
 | Max tokens | 2048 |
 | vLLM engines | 8 (one per GPU) |
@@ -164,28 +165,34 @@ all 4. No consistent crossover pattern either:
 - **OlympiadBench**: the two stay close throughout (within ±1 point),
   converging to a near-exact tie by k=128.
 
-**Not a compute-matched comparison — and the gap is roughly 8x.** Both arms
-train on the same 8K MATH lvl3-5 set, but they see it a very different number
-of times:
+**Not a compute-matched comparison — the data budgets differ by exactly 8x.**
+Both arms train on the same **8,523 problems** (SimpleRL-Zoo's
+`simplelr_qwen_level3to5` split; verified identical, same order). They pass
+over it a very different number of times:
 
-| | Prompts/step | Steps | Prompt-exposures | **Epochs over the 8K set** | Generations |
+| | Prompts/step | Steps | Prompt-exposures | **Epochs over the 8,523** | Generations |
 |---|---|---|---|---|---|
-| **ES** (this run) | 256 | 50 | 12,800 | **~1.5** | 409,600 (x32 population) |
-| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 102,400 | **~12** | 819,200 (x8 rollouts) |
+| **ES** (this run) | 256 | 50 | 12,800 | **1.50** | 409,600 (x32 population) |
+| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 102,400 | **12.01** | 819,200 (x8 rollouts) |
 
 SimpleRL-Zoo's published recipe is "a prompt batch size of 1,024 and 8 rollouts
-per prompt" over "approximately 8,000 problems" (arXiv:2503.18892 §B.5, §3.2),
-and its Qwen2.5-1.5B training curves run to ~100 steps — so the released
-checkpoint has made **~12 passes over the data where this ES run made ~1.5**,
-at ~2x the raw generation count. (Step count is read off their per-model
-figures, so treat it as approximate; the paper does not state RL epochs
-directly.)
+per prompt" (arXiv:2503.18892 §B.5), and its Qwen2.5-1.5B training curves run
+to ~100 steps — so the released checkpoint has made **12.01 passes over the
+data where this ES run made 1.50**, at 2x the raw generation count. The
+exposure ratio is exactly 8.00x and does not depend on the dataset size.
+
+Two caveats on those figures. The step count is read off their per-model
+figures, since the paper never states RL epochs directly. And the paper
+describes the split as "approximately 8,000 problems" (§3.2) — dividing by that
+round number is where the commonly-quoted **12.8** epochs comes from; against
+the actual 8,523-row file it is 12.01, and the matching ES figure moves 1.60 →
+1.50. Either pairing gives the same 8.00x.
 
 That reframes the ES-vs-RL rows above: RL matching or slightly beating ES here
 is what an 8x larger data budget should buy. It doesn't rule out ES preserving
 capacity better under matched compute — that comparison still hasn't been run.
 What holds regardless, at this scale: ES itself shows no crossover and a clean
-net-positive result relative to the base model on all 4 benchmarks, off ~1.5
+net-positive result relative to the base model on all 4 benchmarks, off 1.50
 epochs.
 
 ## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (done)
@@ -204,7 +211,7 @@ property of a small, weak base model with a lot of headroom.
 | alpha (lr) | auto (`sigma/2` = 0.0005, `--alpha -1`) |
 | Population size | 32 |
 | Iterations | 50 (`--n-iterations 50`; the trainer actually runs 51 — an off-by-one in `es-at-scale`'s loop that applies to Experiment 1 too) |
-| Train dataset | `math_lvl3to5_8k` |
+| Train dataset | `math_lvl3to5_8k` (8,523 problems, as Experiment 1) |
 | Batch size / mini-batch size | 256 / 256 |
 | Max tokens | 2048 |
 | Seed | 42 |
@@ -401,61 +408,38 @@ Driver: `scripts/run_gpqa_sweep.sh` (single GPU, vLLM backend, ~1.5 min/model,
 
 ## Training dynamics
 
-### Experiment 1 (1.5B)
-
-Per-iteration stats logged to W&B during training (min/mean/max across the
-population of 32, plus std), reward and response length:
-
-<table>
-<tr>
-<td><img src="results/iter50-1.5b/train_reward_minmeanmax.png" width="390" alt="reward min/mean/max"></td>
-<td><img src="results/iter50-1.5b/train_reward_std.png" width="390" alt="reward std"></td>
-</tr>
-<tr>
-<td><img src="results/iter50-1.5b/train_response_length_minmeanmax.png" width="390" alt="response length min/mean/max"></td>
-<td><img src="results/iter50-1.5b/train_response_length_std.png" width="390" alt="response length std"></td>
-</tr>
-</table>
-
-Reward climbs steadily and plateaus around iteration ~25-30. Response length
-falls the whole time — from a population mean of ~1700 tokens at iteration 0
-down to ~800 by the end — the model is learning to be *more concise* while
-getting *more correct*, not just running longer. Both std curves peak early
-(iteration ~10-15, while the population is still exploring the reward
-landscape) and then decay, consistent with the population converging on a
-consistent style/strategy rather than staying diffuse.
-
-Regenerate with `scripts/plot_training_curves.py --wandb-run
-chunhinma00-personal/es-finetuning/it2de910 --out-dir results/iter50-1.5b` (or
-`--csv results/iter50-1.5b/training_curves.csv` from the saved snapshot).
-
-### Experiment 2 (7B)
-
-This run was launched with `--logging none`, so there is no W&B run to plot
-from; the per-iteration population stats are in the stdout log
-(the `Mean reward:` lines of the trainer's stdout). Summary of the 51
-iterations:
+Experiment 2 ran with `--logging none`, so there is no W&B run behind it — its
+per-iteration stats come from the trainer's stdout, which records reward only.
+Both runs are therefore reported the same way here. Reward across the
+population of 32, at four points in each 51-iteration run:
 
 | | Iter 1 | Iter 10 | Iter 25 | Iter 51 |
 |---|---|---|---|---|
-| Mean reward (7B) | 0.457 | 0.549 | 0.702 | 0.654 |
-| Std (7B) | 0.050 | 0.044 | 0.018 | 0.017 |
-| Mean reward (1.5B, for contrast) | 0.014 | 0.083 | 0.400 | 0.428 |
-| Std (1.5B) | 0.009 | 0.045 | 0.037 | 0.020 |
+| Mean reward — 1.5B | 0.014 | 0.083 | 0.400 | 0.428 |
+| Mean reward — 7B | 0.457 | 0.549 | 0.702 | 0.654 |
+| Std — 1.5B | 0.009 | 0.045 | 0.037 | 0.020 |
+| Std — 7B | 0.050 | 0.044 | 0.018 | 0.017 |
 
-Same overall shape as 1.5B — reward climbs, plateaus around iteration ~24-25,
-std decays as the population converges — with two differences worth noting.
-The 7B run *starts* at a mean reward of 0.457, above where the 1.5B run
-*finishes* (0.428), so nearly all of the 1.5B run's headroom on the training
-reward simply isn't there; total reward improvement is +0.20 (7B) vs +0.41
-(1.5B). And 7B's std decays monotonically instead of peaking early — the
-population never gets the broad early exploration phase the 1.5B run had.
-Iteration-to-iteration reward is noisy after the plateau (0.61-0.70), i.e. the
-last ~25 iterations buy little.
+Both follow the same shape — reward climbs, plateaus around iteration ~25, std
+decays as the population converges — with two differences worth noting. The 7B
+run *starts* at 0.457, above where the 1.5B run *finishes* (0.428), so nearly
+all of the 1.5B run's headroom on the training reward simply isn't there; total
+improvement is +0.20 (7B) vs +0.41 (1.5B). And 7B's std decays monotonically
+instead of peaking early around iteration ~10-15 — the population never gets
+the broad early exploration phase the 1.5B run had. Both are noisy after the
+plateau (7B bounces 0.61-0.70), i.e. the last ~25 iterations buy little.
 
-The training script's own eval suite (single-sample pass@1, its own
+W&B additionally captured response length for Experiment 1, with no 7B
+counterpart to compare against: the population mean *falls* the whole run,
+~1708 tokens at iteration 1 to ~787 by iteration 51, so the 1.5B model learns
+to be **more concise while getting more correct** — not to think longer.
+Full per-iteration series: `results/iter50-1.5b/training_curves.csv`
+(`scripts/plot_training_curves.py` will plot it, or regenerate from
+`--wandb-run chunhinma00-personal/es-finetuning/it2de910`).
+
+The training script runs its own eval suite too (single-sample pass@1, its own
 prompt/sampling settings — **not** comparable to the pass@k harness numbers
-above), baseline vs. final:
+above). For **Experiment 2 (7B)**, baseline vs. final:
 
 | Task | Baseline | Iter 50 |
 |---|---|---|
