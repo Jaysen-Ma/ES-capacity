@@ -7,11 +7,15 @@
 # harder/smaller benchmarks get a larger k).
 #
 # Usage:
-#   ./run_full_eval_suite.sh <trained_hf_model_dir> <run_tag>
+#   ./run_full_eval_suite.sh <trained_hf_model_dir> <run_tag> [base_model_dir]
+#
+# base_model_dir defaults (in run_base_vs_trained_eval.sh) to Experiment 1's
+# Qwen2.5-1.5B snapshot; pass it explicitly to compare against a different base.
 set -euo pipefail
 
 TRAINED_MODEL_DIR=$1
 RUN_TAG=${2:-run1}
+BASE_MODEL_DIR=${3:-}
 
 # benchmark:n_sampling pairs
 PAIRS=(
@@ -30,7 +34,7 @@ for pair in "${PAIRS[@]}"; do
     echo "########################################"
     echo "# Benchmark: $benchmark  (n_sampling=$n_sampling)"
     echo "########################################"
-    "$SCRIPT_DIR/run_base_vs_trained_eval.sh" "$TRAINED_MODEL_DIR" "$RUN_TAG" "$benchmark" "$n_sampling"
+    "$SCRIPT_DIR/run_base_vs_trained_eval.sh" "$TRAINED_MODEL_DIR" "$RUN_TAG" "$benchmark" "$n_sampling" "$BASE_MODEL_DIR"
 done
 
 echo

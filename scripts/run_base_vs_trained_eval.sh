@@ -7,7 +7,10 @@
 # args when calling this.
 #
 # Usage:
-#   ./run_base_vs_trained_eval.sh <trained_hf_model_dir> <run_tag> [benchmark=minerva_math] [n_sampling=64]
+#   ./run_base_vs_trained_eval.sh <trained_hf_model_dir> <run_tag> [benchmark=minerva_math] [n_sampling=64] [base_model_dir]
+#
+# base_model_dir defaults to Experiment 1's Qwen2.5-1.5B snapshot; pass it
+# explicitly to compare against a different base (e.g. Qwen2.5-7B).
 #
 # Requires: limit-of-RLVR/math/examples/math_eval/run_sharded_eval.sh
 set -euo pipefail
@@ -17,7 +20,7 @@ RUN_TAG=${2:-run1}
 BENCHMARK=${3:-minerva_math}
 N_SAMPLING=${4:-64}
 
-BASE_MODEL_DIR="/workspace/.hf_home/hub/models--Qwen--Qwen2.5-1.5B/snapshots/8faed761d45a263340a0528343f099c05c9a4323"
+BASE_MODEL_DIR=${5:-"/workspace/.hf_home/hub/models--Qwen--Qwen2.5-1.5B/snapshots/8faed761d45a263340a0528343f099c05c9a4323"}
 PROMPT_TYPE="qwen-boxed"
 TEMPERATURE=0.6
 TOP_P=0.95
