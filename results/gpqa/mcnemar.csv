@@ -1,0 +1,6 @@
+arm,baseline,acc_arm,acc_baseline,delta_pts,gained,lost,p_mcnemar_exact
+1.5B-ES,1.5B-base,0.348485,0.262626,8.59,27,10,0.0076
+7B-ES,7B-base,0.318182,0.328283,-1.01,9,11,0.8238
+7B-ES-iter100,7B-base,0.287879,0.328283,-4.04,6,14,0.1153
+7B-ES-sigma0025-iter50,7B-base,0.30303,0.328283,-2.53,12,17,0.4583
+7B-ES-iter100,7B-ES,0.287879,0.318182,-3.03,4,10,0.1796

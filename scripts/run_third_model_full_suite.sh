@@ -6,8 +6,8 @@
 # Usage:
 #   ./run_third_model_full_suite.sh <model_dir> <label> <run_tag> [n_sampling_override]
 # e.g.
-#   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl iter50-1.5b
-#   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl iter50-1.5b 32
+#   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl 1.5b-sigma001-iter50
+#   ./run_third_model_full_suite.sh <hf-snapshot-dir> rl 1.5b-sigma001-iter50 32
 set -euo pipefail
 
 MODEL_DIR=$1

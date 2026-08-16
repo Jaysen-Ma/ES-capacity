@@ -14,10 +14,10 @@ so all three scripts agree on the exact same estimator and score-loading logic.
 
 Usage:
     python analyze_three_way.py \
-        --base-dir results/iter50-1.5b/base/aime24 \
-        --es-dir results/iter50-1.5b/trained/aime24 \
-        --rl-dir results/iter50-1.5b/rl/aime24 \
-        --out-prefix results/iter50-1.5b/aime24_threeway \
+        --base-dir results/1.5b-sigma001-iter50/base/aime24 \
+        --es-dir results/1.5b-sigma001-iter50/trained/aime24 \
+        --rl-dir results/1.5b-sigma001-iter50/rl/aime24 \
+        --out-prefix results/1.5b-sigma001-iter50/aime24_threeway \
         --title AIME24 \
         --plot
 """

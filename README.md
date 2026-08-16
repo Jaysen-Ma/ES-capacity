@@ -10,9 +10,14 @@ Run so far at two scales, with **opposite outcomes**: at 1.5B ES expands
 question coverage on all 4 benchmarks with no pass@k crossover; at 7B, under
 identical hyperparameters, the coverage gain nearly vanishes and 2 of 4
 benchmarks cross over — the ceiling-narrowing pattern the RLVR paper
-documents, now showing up in gradient-free ES. Separately, GPQA-diamond finds
-no forgetting at either scale, and one unexplained *gain*
+documents, now showing up in gradient-free ES. Out-of-domain, GPQA-diamond
+finds one large unexplained *gain* at 1.5B and a consistent but
+individually-insignificant downward drift across all three 7B ES arms
 ([below](#out-of-domain-check-gpqa-diamond)).
+
+Doubling the 7B run to 100 iterations changed essentially nothing, and raising
+the perturbation scale only ever made things worse — see
+[Additional runs](#additional-runs-perturbation-scale-and-run-length).
 
 The RL arm throughout is a published SimpleRL-Zoo checkpoint, which saw
 **12.01 epochs of the shared 8,523-problem training set against this ES run's
@@ -77,15 +82,15 @@ settings, sharded across every GPU — `n_sampling` = 512 for AIME24, 128 for
 the rest):
 ```bash
 cd ES-capacity
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b aime24 512
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b math500 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b minerva_math 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> iter50-1.5b olympiadbench 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 aime24 512
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 math500 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 minerva_math 128
+scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 olympiadbench 128
 # or all 4 at once:
-scripts/run_full_eval_suite.sh <path-to-hf-checkpoint> iter50-1.5b
+scripts/run_full_eval_suite.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50
 
 # third-arm (e.g. an RL baseline), reusing the base model's already-computed outputs:
-scripts/run_third_model_full_suite.sh <third-model-dir> rl iter50-1.5b [n_sampling_override]
+scripts/run_third_model_full_suite.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
 ```
 `convert_to_hf.py` first, if starting from a raw `es-at-scale` checkpoint —
 see [Model](#model) below. Both wrappers take an optional trailing
@@ -123,12 +128,12 @@ shared wrapper scripts so runs can't drift: `scripts/run_base_vs_trained_eval.sh
 
 <table>
 <tr>
-<td><img src="results/iter50-1.5b/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k"></td>
-<td><img src="results/iter50-1.5b/math500_threeway_passk.png" width="390" alt="MATH500 pass@k"></td>
+<td><img src="results/1.5b-sigma001-iter50/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k"></td>
+<td><img src="results/1.5b-sigma001-iter50/math500_threeway_passk.png" width="390" alt="MATH500 pass@k"></td>
 </tr>
 <tr>
-<td><img src="results/iter50-1.5b/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k"></td>
-<td><img src="results/iter50-1.5b/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k"></td>
+<td><img src="results/1.5b-sigma001-iter50/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k"></td>
+<td><img src="results/1.5b-sigma001-iter50/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k"></td>
 </tr>
 </table>
 
@@ -247,7 +252,7 @@ base passed explicitly as the trailing `base_model_dir`:
 cd ES-capacity
 scripts/run_full_eval_suite.sh \
   /workspace/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50 \
-  iter50-7b \
+  7b-sigma001-iter50 \
   /workspace/.hf_home/hub/models--Qwen--Qwen2.5-7B/snapshots/d149729398750b98c0af14eb82c78cfe92750796
 ```
 
@@ -294,12 +299,12 @@ ahead:
 
 <table>
 <tr>
-<td><img src="results/iter50-7b/aime24_passk.png" width="390" alt="AIME24 pass@k (7B)"></td>
-<td><img src="results/iter50-7b/math500_passk.png" width="390" alt="MATH500 pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/aime24_passk.png" width="390" alt="AIME24 pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/math500_passk.png" width="390" alt="MATH500 pass@k (7B)"></td>
 </tr>
 <tr>
-<td><img src="results/iter50-7b/minerva_math_passk.png" width="390" alt="Minerva pass@k (7B)"></td>
-<td><img src="results/iter50-7b/olympiadbench_passk.png" width="390" alt="OlympiadBench pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/minerva_math_passk.png" width="390" alt="Minerva pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/olympiadbench_passk.png" width="390" alt="OlympiadBench pass@k (7B)"></td>
 </tr>
 </table>
 
@@ -368,12 +373,82 @@ the caveat above), and there is still no compute-matched RL arm at either
 scale — so this says something about ES across scale, and still nothing
 rigorous about ES *versus* RLVR.
 
+## Additional runs: perturbation scale and run length
+
+Experiments 1 and 2 fix σ = 0.001 and 50 iterations. Five further 7B runs probe
+the two obvious knobs around that point — is σ = 0.001 near-optimal, and does
+running longer help? Both answers are no, in opposite directions. These arms
+were scored on GPQA but **not** put through the pass@k suite (~3h35m of
+generation each), so they inform hyperparameter choice, not the capacity claim.
+
+Every run below is Qwen2.5-7B, population 32, `max_tokens=2048`, seed 42, on
+the same 8x RTX 4090 box. "Reward" is the population mean of the binary math
+reward; "Σ iter wall" sums the per-iteration times and so excludes startup.
+
+| Run | σ | α | Batch | Iterations | Reward: start → end (peak) | Σ iter wall | Outcome |
+|---|---|---|---|---|---|---|---|
+| `7b-sigma001-iter50` (Exp 2) | 0.001 | auto, σ/2 | 256 | 1–51 | 0.457 → 0.654 (0.702 @ i25) | 4.34h | **the reference run** |
+| `7b-sigma001-iter100` | 0.001 | auto, σ/2 | 256 | 52–101 | 0.664 → 0.645 (0.737 @ i75) | 4.20h | no further gain |
+| `7b-sigma0025-iter50` | 0.0025 | σ/4 | 256 | 1–51 | 0.355 → 0.533 (0.649 @ i34) | 4.79h | worse than σ=0.001 |
+| `7b-sigma0025-b64-aborted` | 0.0025 | σ/4 | 64 | 1–24 | 0.423 → 0.383 (0.511 @ i22) | 1.31h | stopped; relaunched at batch 256 |
+| `7b-sigma005-b64-aborted` | 0.005 | σ/4 | 64 | 1–2 | 0.001 → 0.000 | 0.12h | **collapsed** |
+| `7b-sigma01-b64-aborted` | 0.01 | σ/4 | 64 | 1–3 | 0.000 → 0.000 | 0.18h | **collapsed** |
+
+### σ: 0.001 is at or near the ceiling, and the cliff above it is sharp
+
+σ = 0.005 and σ = 0.01 both drove the population mean reward to **exactly zero
+within two iterations** and were killed — every one of the 32 perturbed models
+failed every problem in the batch. That is not slow degradation, it is the
+perturbation destroying the model outright, and it also means ES gets no
+gradient signal at all: with all-zero fitness there is nothing for rank shaping
+to order, so the run could not have recovered on its own.
+
+σ = 0.0025 stays alive but is clearly worse: it *starts* at 0.355 against
+σ = 0.001's 0.457 (the perturbation is already costing accuracy at iteration 1)
+and finishes at 0.533 against 0.654, never catching up. Its GPQA is also lower
+(30.3% vs 31.8%). Note this run changed α as well as σ (σ/4 rather than the
+auto σ/2), so σ and step size aren't cleanly separated here — but given the
+total collapse just one step further out, the direction isn't in doubt.
+
+So the usable range for full-rank ES on Qwen2.5-7B is narrow, and 0.001 sits
+close to its upper edge. Nothing here tests *below* 0.001.
+
+### Run length: iterations 51–100 bought nothing
+
+The continuation resumes Experiment 2's checkpoint and runs 50 more iterations
+for another 4.2 hours. Every measure is flat or slightly down:
+
+| Measure | After 50 iters | After 100 iters | Δ |
+|---|---|---|---|
+| Training reward (population mean) | 0.664 | 0.645 | −0.019 |
+| In-loop AIME | 6.67% | 6.67% | ±0.00 |
+| In-loop AMC | 34.94% | 37.35% | +2.41 |
+| In-loop MATH500 | 73.00% | 73.40% | +0.40 |
+| In-loop Minerva | 37.87% | 37.87% | ±0.00 |
+| In-loop OlympiadBench | 36.15% | 36.00% | −0.15 |
+| GPQA-diamond | 31.8% | 28.8% | **−3.03** (4 gained / 10 lost, p = 0.18) |
+
+Every in-loop move sits inside the ±3-point noise band measured
+[above](#the-trainers-own-eval-suite-and-its-noise-floor), so the only reading
+those rows support is "no change". Training reward peaked at 0.737 around
+iteration 75 and drifted back down — the run is bouncing around a plateau it
+had already reached by iteration ~25 of the *first* 50.
+
+**This partly answers the headroom confound.** The open question after
+Experiment 2 was whether 7B's weak result is "less headroom" (fixable with more
+iterations) or "ES scales worse" (not). More iterations was the cheap test, and
+it moved nothing — so the 7B result is not simply an under-trained 1.5B result.
+It does not settle it either: the reward plateau means the *search* stalled,
+which is what you'd expect if the population is too small for the parameter
+count rather than if the model is out of headroom. Population, not iterations,
+is the knob that hasn't been tried.
+
 ## Out-of-domain check: GPQA-diamond
 
 All post-training here is math-only, so the obvious question is what it costs
 elsewhere. GPQA-diamond zero-shot (198 graduate-level science questions,
 4-choice, scored by log-likelihood — **not** pass@k; a different probe than
-everything above), run across all 6 arms with `lm_eval`:
+everything above), run across all 8 arms with `lm_eval`:
 
 | Arm | acc | vs. its base | McNemar (paired, exact) |
 |---|---|---|---|
@@ -381,30 +456,40 @@ everything above), run across all 6 arms with `lm_eval`:
 | 1.5B ES | **34.8% (69/198)** | **+8.6** | 27 gained / 10 lost, **p = 0.008** |
 | 1.5B RL (SimpleRL-Zoo) | 27.3% (54/198) | +1.0 | 5 gained / 3 lost, p = 0.73 |
 | 7B base | 32.8% (65/198) | — | — |
-| 7B ES | 31.8% (63/198) | −1.0 | 9 gained / 11 lost, p = 0.82 |
+| 7B ES (σ=0.001, iter50) | 31.8% (63/198) | −1.0 | 9 gained / 11 lost, p = 0.82 |
+| 7B ES (σ=0.0025, iter50) | 30.3% (60/198) | −2.5 | 12 gained / 17 lost, p = 0.46 |
+| 7B ES (σ=0.001, iter100) | 28.8% (57/198) | −4.0 | 6 gained / 14 lost, p = 0.12 |
 | 7B RL (SimpleRL-Zoo) | 32.8% (65/198) | ±0.0 | 2 gained / 2 lost, p = 1.00 |
 
-**No forgetting anywhere** — no arm drops meaningfully below its base. The
-surprise is the other direction: **math-only ES training at 1.5B improves
-out-of-domain science QA by 8.6 points**, the only change in the table that
-survives a paired test. Note where it starts from: 4-choice chance is 25%, and
-1.5B base (26.3%) and 1.5B RL (27.3%) are both indistinguishable from
-guessing, so ES is the only 1.5B arm doing better than chance at all. Whether
-that is real science knowledge or just better-calibrated option scoring on a
-model that could previously do neither, this run can't say.
+**At 1.5B, a large gain in the wrong direction from what "forgetting" predicts.**
+**Math-only ES training improves out-of-domain science QA by 8.6 points** — the
+only change in the table that survives a paired test. Note where it starts
+from: 4-choice chance is 25%, and 1.5B base (26.3%) and 1.5B RL (27.3%) are
+both indistinguishable from guessing, so ES is the only 1.5B arm doing better
+than chance at all. Whether that is real science knowledge or just
+better-calibrated option scoring on a model that could previously do neither,
+this run can't say.
 
-At 7B, all three arms sit together at ~32% and every pairwise difference is
-noise. (7B base and 7B RL score identically at 65/198 but disagree on 4
-questions — coincidence, not a duplicated run.)
+**At 7B, a consistent downward drift that no single test can confirm.** All
+three 7B ES arms land below their base (−1.0, −2.5, −4.0), and the ordering
+tracks how much the weights were moved: further from the base weights (more
+iterations, or a larger σ) means lower GPQA. No individual arm's drop is
+significant at n=198 — the best is p = 0.12 — and the ES arms are not
+independent of each other (iter100 *is* iter50, trained further), so this is
+one weak signal, not three. The paired iter50 → iter100 comparison is the
+cleanest version of it: −3.0 points, 4 gained / 10 lost, p = 0.18.
 
-This lines up with the scale story above: at 1.5B the ES run was a large
-intervention on a weak model and moved things in *both* domains; at 7B it was
-a small intervention and moved neither. It also means Experiment 2's AIME24
-narrowing is not part of some general degradation — nothing outside math
-regressed.
+Read together: at 1.5B the ES run was a large intervention on a weak model and
+moved things in *both* domains; at 7B it was a small intervention that left
+in-domain pass@k roughly flat and may be slowly costing out-of-domain accuracy
+as it runs longer. What the table does rule out is a *large* out-of-domain
+collapse at 7B — so Experiment 2's AIME24 narrowing isn't a symptom of general
+degradation. What it no longer supports is a flat "no forgetting anywhere".
 
 Driver: `scripts/run_gpqa_sweep.sh` (single GPU, vLLM backend, ~1.5 min/model,
-~9 min for the sweep). Per-arm scores: [results/README.md](results/README.md).
+~9 min for the sweep), reduced to committed CSVs by `scripts/analyze_gpqa.py`.
+Per-arm scores, the full per-question correctness matrix, and every McNemar
+pair: [`results/gpqa/`](results/gpqa/).
 
 ## Training dynamics
 
@@ -433,11 +518,16 @@ W&B additionally captured response length for Experiment 1, with no 7B
 counterpart to compare against: the population mean *falls* the whole run,
 ~1708 tokens at iteration 1 to ~787 by iteration 51, so the 1.5B model learns
 to be **more concise while getting more correct** — not to think longer.
-Full per-iteration series: `results/iter50-1.5b/training_curves.csv`
+Full per-iteration series: `results/1.5b-sigma001-iter50/wandb_curves.csv`
 (`scripts/plot_training_curves.py` will plot it, or regenerate from
 `--wandb-run chunhinma00-personal/es-finetuning/it2de910`).
 
-The training script runs its own eval suite too (single-sample pass@1, its own
+Per-iteration reward for every run is in `results/<run>/training_curves.csv`,
+extracted from the trainer's stdout by `scripts/parse_training_log.py`.
+
+### The trainer's own eval suite, and its noise floor
+
+The training script also runs its own eval suite (single-sample pass@1, its own
 prompt/sampling settings — **not** comparable to the pass@k harness numbers
 above). For **Experiment 2 (7B)**, baseline vs. final:
 
@@ -449,19 +539,53 @@ above). For **Experiment 2 (7B)**, baseline vs. final:
 | Minerva | 21.0% | 34.6% |
 | OlympiadBench | 28.9% | 37.2% |
 
-Large gains everywhere except AIME, which halves — an independent signal for
-the AIME24 narrowing seen in the pass@k results (different harness, different
-settings, same direction).
+Large gains everywhere except AIME, which halves — the same direction as the
+AIME24 narrowing in the pass@k results, from a different harness.
+
+**This suite is not deterministic, which is worth knowing before leaning on it.**
+The additional runs happen to supply two free repeated measurements — every run
+evaluates its starting weights before training anything, so the pristine 7B base
+was scored twice (Experiment 2 and the aborted σ=0.01 run), and the Experiment 2
+checkpoint was scored twice (as Experiment 2's final eval and as the
+100-iteration continuation's baseline). Same weights, same command, same seed:
+
+| Task | Base, run A → B | Δ | ES iter50, run A → B | Δ |
+|---|---|---|---|---|
+| AIME (n=30) | 16.67% → 16.67% | ±0.00 | 6.67% → 6.67% | ±0.00 |
+| AMC (n=83) | 34.94% → 34.94% | ±0.00 | 40.96% → 34.94% | **−6.02** (5 q) |
+| MATH500 (n=500) | 46.80% → 46.60% | −0.20 (1 q) | 71.40% → 73.00% | +1.60 (8 q) |
+| Minerva (n=272) | 20.96% → 19.85% | −1.10 (3 q) | 34.56% → 37.87% | +3.31 (9 q) |
+| OlympiadBench (n=675) | 28.89% → 30.37% | +1.48 (10 q) | 37.19% → 36.15% | −1.04 (7 q) |
+
+Between 1 and 10 questions flip on the larger benchmarks in each pair, so the
+harness genuinely is nondeterministic — presumably vLLM batching across the 8
+co-located engines. The worst single cell is AMC's 6 points, though that same
+cell was stable in the other pair, so treat ~±3 points as the working noise
+band on the mid-size benchmarks rather than 6.
+
+**AIME reproduced exactly in both pairs**, which is the relevant fact for the
+16.7% → 6.7% drop: nothing here suggests the number wanders on its own. That
+makes it a real corroborating signal for the AIME24 pass@k narrowing rather
+than an artifact. It is still only 3 questions out of 30 from a single-sample
+harness, so the load-bearing evidence remains the n_sampling=512 pass@k run,
+where the same effect is measured over 15,360 completions.
 
 ## Model
 
-Both ES-trained checkpoints are published, in HF format, converted from the raw
+The two headline checkpoints are published, in HF format, converted from the raw
 `es-at-scale` checkpoints with `scripts/convert_to_hf.py --verify`:
 
-| Experiment | Checkpoint |
+| Run | Checkpoint |
 |---|---|
-| 1 (1.5B) | [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
-| 2 (7B) | [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) |
+| Experiment 1 — 1.5B, σ=0.001, iter50 | [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
+| Experiment 2 — 7B, σ=0.001, iter50 | [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) |
+| 7B continuation, σ=0.001, iter100 | [zocrate/Qwen2.5-7B-ES-math-iter100](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math-iter100) |
+
+The iter100 checkpoint is the Experiment 2 run continued for 50 more
+iterations. It was not put through the pass@k suite; in-loop eval and GPQA
+are strictly no-better / slightly worse than iter50. The remaining
+unpublished additional-run checkpoint is 7B σ=0.0025 iter50. Full numbers
+for both are in `results/`.
 
 ## Later
 
@@ -473,12 +597,25 @@ Both ES-trained checkpoints are published, in HF format, converted from the raw
 - **Is AIME24's 7B narrowing real or n=30 noise?** It is the strongest result
   in Experiment 2 and rests on 30 questions (4 lost, 1 gained). Worth a second
   seed, or AIME25/AMC as an independent hard-benchmark check, before leaning
-  on it.
-- **Headroom confound.** Experiment 2 changed base-model strength and left the
-  ES budget fixed, so "7B has less headroom" and "ES scales worse" aren't
-  separated. A longer 7B run (150-200 iterations, ~14-18h at the observed
-  ~300s/iteration) would tell them apart: if it's headroom, more iterations
-  keep moving pass@1 without further ceiling loss.
+  on it. The trainer's in-loop AIME eval does survive a
+  [reproducibility check](#the-trainers-own-eval-suite-and-its-noise-floor)
+  (identical across two repeat measurements), so it corroborates — but it is
+  the same 30 questions, not an independent question set.
+- **Population, not iterations.** The 100-iteration run
+  ([above](#run-length-iterations-51100-bought-nothing)) killed the "just train
+  longer" version of the headroom confound: 50 more iterations moved nothing
+  and the reward plateau held. The untested knob is population size. Full-rank
+  ES estimates a descent direction in a D-dimensional space from `population`
+  samples, and D grows ~4.9x from 1.5B to 7B while population stayed at 32 —
+  so each 7B update is drawn from a proportionally much noisier estimate. A 7B
+  run at population 128 or 256, iterations held at 50, is the experiment that
+  separates "ES scales worse" from "population 32 is too small at 7B". Cost is
+  linear in population, so ~4x/~8x the 4.3h.
+- **Does the 7B GPQA drift compound?** All three 7B ES arms sit below base and
+  the gap grows with distance from the base weights, but no single arm reaches
+  significance. A 200-iteration run would say whether this is a real monotone
+  cost or three draws of noise — it is cheap to check as a side effect of any
+  longer run.
 - No RL arm in the 7B pass@k suite (`hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo` is
   downloaded and is in the GPQA sweep, just not the math suite — another ~2h
   of generation).

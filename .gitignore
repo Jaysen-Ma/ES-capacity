@@ -1,6 +1,5 @@
 # Local / personal (never push)
 .notes/
-config.local.toml
 .cursor/
 
 # Runtime artifacts
@@ -15,10 +14,6 @@ checkpoints/
 *.pth
 *.bin
 *.pt
-
-# Downloaded training data (regenerate: python -m es_capacity.cli.fetch_train_data)
-# README.md + SHA256 stay committed so the download stays verifiable.
-data/simplerl_*/train.jsonl
 
 # Model / HF caches
 .hf_cache/
@@ -61,20 +56,28 @@ htmlcov/
 # Wandb
 wandb/
 
-# Raw per-shard generation outputs (large; regenerate via run_base_vs_trained_eval.sh /
-# run_third_model_eval.sh). Only the derived summaries/plots belong in git.
+# --- Raw evaluation/training artifacts -------------------------------------
+# Everything below is reproducible and is reduced to committed CSV/JSON summaries
+# by scripts/. The rule throughout: derived results in git, raw dumps out.
+
+# Raw per-shard pass@k generations (large; regenerate via
+# run_base_vs_trained_eval.sh / run_third_model_eval.sh).
 results/*/base/
 results/*/trained/
 results/*/rl/
 results/*/*.log
 results/*_run.log
-outputs/
 
-# lm-eval-harness output for the GPQA sweep. The scores are in results/README.md;
-# the raw tree is machine-named, reproducible in ~9min via run_gpqa_sweep.sh, and
-# its samples_*.jsonl embed the verbatim benchmark text (a presigned S3 URL in the
-# GPQA corpus once tripped GitHub secret scanning that way).
-results/gpqa_diamond/
+# Raw lm-eval-harness tree for the GPQA sweep. Reduced to results/gpqa/*.csv by
+# scripts/analyze_gpqa.py, and reproducible in ~9min via run_gpqa_sweep.sh. Kept
+# out of git because its samples_*.jsonl embed the verbatim benchmark text —
+# a presigned S3 URL in the GPQA corpus once tripped GitHub secret scanning.
+results/gpqa_results/
+
+# Raw trainer stdout (~1.6MB, 7 runs). Reduced to per-run training_curves.csv +
+# inloop_eval.csv by scripts/parse_training_log.py. Covered by `logs/` above;
+# spelled out here so the intent is obvious.
+results/logs/
 
 # Transient per-shard model copies from run_sharded_eval.sh (cleaned up on
 # exit via its EXIT trap; ignored defensively in case a run dies uncleanly)

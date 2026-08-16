@@ -1,0 +1,6 @@
+eval_point,task,pass@1
+baseline,aime,0.16666666666666666
+baseline,amc,0.3493975903614458
+baseline,math500,0.466
+baseline,minerva,0.19852941176470587
+baseline,olympiad_bench,0.3037037037037037

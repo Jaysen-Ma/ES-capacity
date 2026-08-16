@@ -1,9 +1,19 @@
 #!/bin/bash
-# GPQA-diamond zero-shot across all 6 arms (both scales x base/ES/RL).
+# GPQA-diamond zero-shot across the 6 published arms (both scales x base/ES/RL).
 #
 # This is the out-of-domain probe, NOT pass@k: lm_eval scores the 4 choices by
 # log-likelihood, one pass, no sampling. ~1.5 min/model on a single GPU, so the
 # whole sweep is ~9 min.
+#
+# results/README.md reports 8 arms. The two extra ones (7B sigma=0.001 iter100,
+# 7B sigma=0.0025 iter50) are unpublished checkpoints, so they cannot be named
+# by Hub id here — add them by pointing at a local directory, e.g.
+#   MODELS[7B-ES-iter100]=/path/to/experiments/qwen7b-math-run/hf-checkpoint-iter100
+# and appending the key to the `for name in ...` list below.
+#
+# Reduce the resulting tree to the committed CSVs with:
+#   python scripts/analyze_gpqa.py --sweep-root <output_dir> --out results/gpqa \
+#     --pair 7B-ES:7B-base ...
 #
 # Usage:
 #   ./run_gpqa_sweep.sh [output_dir=gpqa_results] [gpu=0]
