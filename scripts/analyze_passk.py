@@ -36,6 +36,8 @@ import os
 
 import numpy as np
 
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 BENCHMARKS = [
     ("aime24", "AIME24"),
     ("math500", "MATH500"),
@@ -232,7 +234,7 @@ def main():
     if baseline not in args.labels:
         ap.error(f"--baseline {baseline!r} is not among the --label values: {args.labels}")
 
-    run_root = os.path.join("results", args.run_tag)
+    run_root = os.path.join(REPO_ROOT, "results", args.run_tag)
     for benchmark, title in BENCHMARKS:
         label_dirs = {label: os.path.join(run_root, label, benchmark) for label in args.labels}
         missing = [label for label, d in label_dirs.items() if not os.path.isdir(d)]

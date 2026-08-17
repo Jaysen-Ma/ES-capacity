@@ -74,6 +74,10 @@ cd $WORKSPACE/ES-capacity
 scripts/run_eval.sh <model_dir> <label> <run_tag>
 scripts/analyze_passk.py --run-tag <run_tag> --label ... --baseline ... --plot
 ```
+`run_eval.sh` needs `MATH_EVAL_DIR`; since `on_start.sh` already clones
+`limit-of-RLVR` onto `$WORKSPACE`, it's found automatically with no
+`config.sh` needed here — that fallback only kicks in when `$WORKSPACE` is
+set, which it always is on this image.
 
 If you need to patch verl itself (e.g. to compare its math reward against
 es-at-scale's, per the handoff doc's step), don't edit `/opt/verl` in place —

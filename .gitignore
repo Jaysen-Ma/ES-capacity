@@ -33,6 +33,7 @@ build/
 venv/
 .env
 .env.*
+config.sh
 
 # Editors / OS
 .idea/

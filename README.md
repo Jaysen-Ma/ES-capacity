@@ -79,9 +79,13 @@ the eval dataloader (e.g. resuming training from a checkpoint, see Experiment
 
 Evaluate — one call per arm, each running all 4 benchmarks through identical
 settings, sharded across every GPU (`n_sampling` = 512 for AIME24, 128 for
-the rest), then one call to analyze every benchmark at once:
+the rest), then one call to analyze every benchmark at once. `run_eval.sh`
+needs `MATH_EVAL_DIR` pointing at a `limit-of-RLVR` checkout (copy
+`config.example.sh` to `config.sh` and set it, or export it — see the
+script's header):
 ```bash
 cd ES-capacity
+cp config.example.sh config.sh && vi config.sh   # once per environment
 scripts/run_eval.sh <path-to-1.5b-base> base 1.5b-sigma001-iter50
 scripts/run_eval.sh <path-to-hf-checkpoint> trained 1.5b-sigma001-iter50
 scripts/run_eval.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
