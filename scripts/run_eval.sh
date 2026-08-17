@@ -62,6 +62,10 @@ TEMPERATURE=0.6
 TOP_P=0.95
 MAX_TOKENS=2048
 SEED=1
+# run_sharded_eval.sh's own default (0.9) assumes a GPU dedicated to this
+# job, which doesn't hold on a shared/dev box. Override via env var
+# (GPU_MEM_UTIL=0.3 ./run_eval.sh ...) if something else is using the GPU.
+GPU_MEM_UTIL="${GPU_MEM_UTIL:-0.9}"
 
 # benchmark:n_sampling pairs
 PAIRS=(
@@ -88,7 +92,7 @@ for pair in "${PAIRS[@]}"; do
     echo "# Benchmark: $benchmark  (n_sampling=$n_sampling, model=$LABEL)"
     echo "########################################"
     ./run_sharded_eval.sh "$MODEL_DIR" "$LABEL_OUT" "$benchmark" "$n_sampling" \
-        "$TEMPERATURE" "$TOP_P" "$MAX_TOKENS" "$PROMPT_TYPE" "$SEED"
+        "$TEMPERATURE" "$TOP_P" "$MAX_TOKENS" "$PROMPT_TYPE" "$SEED" "" "$GPU_MEM_UTIL"
 done
 
 echo
