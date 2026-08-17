@@ -6,12 +6,12 @@
 # analyze_passk.py compares whichever labels you point it at.
 #
 # Usage:
-#   ./run_eval.sh <model_dir> <label> <run_tag> [n_sampling_override]
+#   ./run_eval.sh <model_dir_or_name> <label> <run_tag> [n_sampling_override]
 # e.g.
-#   ./run_eval.sh /path/to/hf/Qwen2.5-7B-snapshot base 7b-sigma001-iter50
-#   ./run_eval.sh /path/to/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50 trained 7b-sigma001-iter50
-#   ./run_eval.sh /path/to/hf/SimpleRL-Zoo-snapshot rl 7b-sigma001-iter50
-#   ./run_eval.sh /path/to/hf/SimpleRL-Zoo-snapshot rl 7b-sigma001-iter50 32   # same n_sampling=32 for all 4 benchmarks
+#   ./run_eval.sh Qwen2.5-7B base 7b-sigma001-iter50                 # resolved as $MODELS_DIR/Qwen2.5-7B
+#   ./run_eval.sh /path/to/hf-checkpoint-iter50 trained 7b-sigma001-iter50   # absolute path, used as-is
+#   ./run_eval.sh SimpleRL-Zoo-7B rl 7b-sigma001-iter50
+#   ./run_eval.sh SimpleRL-Zoo-7B rl 7b-sigma001-iter50 32   # same n_sampling=32 for all 4 benchmarks
 #
 # n_sampling_override, if given, replaces every benchmark's n_sampling below
 # (e.g. for a cheap "does it already cross at low k" check before committing
@@ -24,6 +24,11 @@
 # assumed — copy config.example.sh to config.sh and set it there, or export
 # it yourself; on a box following docker/on_start.sh's layout it defaults to
 # $WORKSPACE/limit-of-RLVR/math/examples/math_eval).
+#
+# <model_dir_or_name>: an absolute path is used as-is. Anything else is
+# resolved as $MODELS_DIR/<name> — set MODELS_DIR in config.sh (or export
+# it) to say where you keep model snapshots, so commands don't need to
+# hardcode a full path per box.
 set -euo pipefail
 
 MODEL_DIR=$1
@@ -46,6 +51,18 @@ if [ -z "${MATH_EVAL_DIR:-}" ]; then
     echo "       export MATH_EVAL_DIR=/path/to/limit-of-RLVR/math/examples/math_eval" >&2
     exit 1
 fi
+
+case "$MODEL_DIR" in
+    /*) ;;  # already absolute, use as-is
+    *)
+        if [ -z "${MODELS_DIR:-}" ]; then
+            echo "ERROR: '$MODEL_DIR' is not an absolute path, and MODELS_DIR isn't set to resolve it against." >&2
+            echo "       Copy config.example.sh to config.sh and set MODELS_DIR, or pass an absolute model path." >&2
+            exit 1
+        fi
+        MODEL_DIR="$MODELS_DIR/$MODEL_DIR"
+        ;;
+esac
 
 PROMPT_TYPE="qwen-boxed"
 TEMPERATURE=0.6
