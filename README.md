@@ -10,10 +10,10 @@ Run so far at two scales, with **opposite outcomes**: at 1.5B ES expands
 question coverage on all 4 benchmarks with no pass@k crossover; at 7B, under
 identical hyperparameters, the coverage gain nearly vanishes and 2 of 4
 benchmarks cross over — the ceiling-narrowing pattern the RLVR paper
-documents, now showing up in gradient-free ES. Out-of-domain, GPQA-diamond
-finds one large unexplained *gain* at 1.5B and a consistent but
-individually-insignificant downward drift across all three 7B ES arms
-([below](#out-of-domain-check-gpqa-diamond)).
+documents, now showing up in gradient-free ES. Out-of-domain, an earlier
+GPQA-diamond sweep found a large unexplained *gain* at 1.5B and a consistent
+but individually-insignificant downward drift across all three 7B ES arms —
+paused pending a redo ([below](#out-of-domain-check-gpqa-diamond)).
 
 Doubling the 7B run to 100 iterations changed essentially nothing, and raising
 the perturbation scale only ever made things worse — see
@@ -77,25 +77,22 @@ has no `problem` field and crashes the trainer the moment anything touches
 the eval dataloader (e.g. resuming training from a checkpoint, see Experiment
 2 below).
 
-Evaluate (base, ES-trained, and any third arm, all through identical
-settings, sharded across every GPU — `n_sampling` = 512 for AIME24, 128 for
-the rest):
+Evaluate — one call per arm, each running all 4 benchmarks through identical
+settings, sharded across every GPU (`n_sampling` = 512 for AIME24, 128 for
+the rest), then one call to analyze every benchmark at once:
 ```bash
 cd ES-capacity
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 aime24 512
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 math500 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 minerva_math 128
-scripts/run_base_vs_trained_eval.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50 olympiadbench 128
-# or all 4 at once:
-scripts/run_full_eval_suite.sh <path-to-hf-checkpoint> 1.5b-sigma001-iter50
+scripts/run_eval.sh <path-to-1.5b-base> base 1.5b-sigma001-iter50
+scripts/run_eval.sh <path-to-hf-checkpoint> trained 1.5b-sigma001-iter50
+scripts/run_eval.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
 
-# third-arm (e.g. an RL baseline), reusing the base model's already-computed outputs:
-scripts/run_third_model_full_suite.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
+scripts/analyze_passk.py --run-tag 1.5b-sigma001-iter50 \
+  --label base --label trained --label rl --baseline base --plot
 ```
 `convert_to_hf.py` first, if starting from a raw `es-at-scale` checkpoint —
-see [Model](#model) below. Both wrappers take an optional trailing
-`base_model_dir` (added for Experiment 2); it defaults to the Qwen2.5-1.5B
-snapshot used here.
+see [Model](#model) below. `analyze_passk.py` works with any 2+ labels (the
+`rl` arm is optional) and skips any benchmark missing for a requested label
+rather than failing the whole run.
 
 ### Evaluation wall-clock
 
@@ -117,9 +114,9 @@ Grand total across all 3 models, 4 benchmarks: ~1h2m.
 Three models compared on four benchmarks (AIME24, MATH500, Minerva Math,
 OlympiadBench) at identical generation settings throughout (`temperature=0.6`,
 `top_p=0.95`, `max_tokens=2048`, `qwen-boxed` template, `seed=1` — enforced by
-shared wrapper scripts so runs can't drift: `scripts/run_base_vs_trained_eval.sh`,
-`scripts/run_third_model_eval.sh`). `n_sampling` (= max k) is 512 for AIME24,
-128 for the rest; each benchmark's full data range gets its own pass@k curve.
+one shared wrapper so runs can't drift: `scripts/run_eval.sh`). `n_sampling`
+(= max k) is 512 for AIME24, 128 for the rest; each benchmark's full data
+range gets its own pass@k curve.
 
 - **Base**: `Qwen/Qwen2.5-1.5B`
 - **ES**: this project's Experiment 1 checkpoint
@@ -170,35 +167,69 @@ all 4. No consistent crossover pattern either:
 - **OlympiadBench**: the two stay close throughout (within ±1 point),
   converging to a near-exact tie by k=128.
 
-**Not a compute-matched comparison — the data budgets differ by exactly 8x.**
-Both arms train on the same **8,523 problems** (SimpleRL-Zoo's
-`simplelr_qwen_level3to5` split; verified identical, same order). They pass
-over it a very different number of times:
+**Not a compute-matched comparison — and the mismatch is different on each
+axis.** Both arms train on the same **8,523 problems** (SimpleRL-Zoo's
+`simplelr_qwen_level3to5` split; verified identical, same order), but they
+spend their budget on different things:
 
-| | Prompts/step | Steps | Prompt-exposures | **Epochs over the 8,523** | Generations |
-|---|---|---|---|---|---|
-| **ES** (this run) | 256 | 50 | 12,800 | **1.50** | 409,600 (x32 population) |
-| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 102,400 | **12.01** | 819,200 (x8 rollouts) |
+| | Prompts/step | Steps | ×per prompt | Prompt-exposures | **Epochs** | Generations | Token cap |
+|---|---|---|---|---|---|---|---|
+| **ES** (this run) | 256 | 50 | 32 population | 12,800 | **1.50** | 409,600 | 2,048 |
+| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 8 rollouts | 102,400 | **12.01** | 819,200 | 8,192 |
+| **ratio (RL / ES)** | 4x | 2x | 0.25x | **8.00x** | **8.00x** | **2.00x** | **4x** |
 
-SimpleRL-Zoo's published recipe is "a prompt batch size of 1,024 and 8 rollouts
-per prompt" (arXiv:2503.18892 §B.5), and its Qwen2.5-1.5B training curves run
-to ~100 steps — so the released checkpoint has made **12.01 passes over the
-data where this ES run made 1.50**, at 2x the raw generation count. The
-exposure ratio is exactly 8.00x and does not depend on the dataset size.
+The two ratios that matter come apart: RL sees **8x more data** but runs only
+**2x more generations**. That is the whole structural difference between the
+methods. RL spends its generation budget on *data breadth* — many prompts, 8
+samples each, just enough to form a group-relative advantage. ES spends its
+budget on *parameter breadth* — few prompts, but 32 perturbed copies of the
+entire network evaluated on all of them. Same benchmark, same reward, very
+different thing being estimated.
 
-Two caveats on those figures. The step count is read off their per-model
-figures, since the paper never states RL epochs directly. And the paper
-describes the split as "approximately 8,000 problems" (§3.2) — dividing by that
-round number is where the commonly-quoted **12.8** epochs comes from; against
-the actual 8,523-row file it is 12.01, and the matching ES figure moves 1.60 →
-1.50. Either pairing gives the same 8.00x.
+**On pairing "rollouts" with "population": they are the right analogy for
+counting generations and the wrong one for statistics.** Both multiply the
+per-step generation count, so the arithmetic above is sound. But a GRPO rollout
+is a sample from one policy used to estimate an advantage for one prompt, and
+the actual descent direction comes from backprop. An ES population member is a
+different point in parameter space, and the population *is* the entire gradient
+estimator — there is no backward pass at all. So ES trades an exact gradient
+for a `population`-sample estimate of a D-dimensional one, which is why it can
+look generation-hungry and FLOP-cheap at the same time. Don't read "32 > 8" as
+ES getting more of the same resource.
+
+Two caveats on the figures themselves. The step count is read off SimpleRL-Zoo's
+per-model figures for **Qwen2.5-1.5B**, since the paper never states RL epochs
+directly — it is not independently verified for their 7B run, so treat the 7B
+version of this table as inheriting that assumption. And the paper describes the
+split as "approximately 8,000 problems" (§3.2) — dividing by that round number
+is where the commonly-quoted **12.8** epochs comes from; against the actual
+8,523-row file it is 12.01, and the matching ES figure moves 1.60 → 1.50. Either
+pairing gives the same 8.00x.
 
 That reframes the ES-vs-RL rows above: RL matching or slightly beating ES here
 is what an 8x larger data budget should buy. It doesn't rule out ES preserving
-capacity better under matched compute — that comparison still hasn't been run.
-What holds regardless, at this scale: ES itself shows no crossover and a clean
-net-positive result relative to the base model on all 4 benchmarks, off 1.50
-epochs.
+capacity better under matched compute — that comparison still hasn't been run,
+and [what "matched" should even mean](#planned-matched-budget-es-vs-rl) is not
+obvious. What holds regardless, at this scale: ES itself shows no crossover and
+a clean net-positive result relative to the base model on all 4 benchmarks, off
+1.50 epochs.
+
+### Reading any ES-vs-RL curve in this repo
+
+Three differences apply to every ES-vs-RL comparison here, at both scales. They
+are not fatal — the curves are still worth showing — but each one has a
+direction, so read the comparison with them in mind rather than as a clean
+head-to-head.
+
+| Difference | ES | RL | Which way it cuts |
+|---|---|---|---|
+| Training token cap | 2,048 | 8,192 | Favours RL on long-form problems. Our eval caps generation at 2,048, so RL's extra training-time length can't be *scored* here, but it may still have shaped the policy. |
+| Data budget | 1.50 epochs | 12.01 epochs | Favours RL, heavily. |
+| Generations | 409,600 | 819,200 | Favours RL, 2x. |
+| Checkpoint shown | **iter50** at both scales | fully trained | The 7B iter100 checkpoint exists and doubles ES's generations to exact parity with RL, but was never put through the pass@k suite — so every pass@k curve here is the half-budget ES model. |
+
+The last row is the one most likely to be misread. Where a curve says "ES", it
+is the 50-iteration checkpoint, for both 1.5B and 7B.
 
 ## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (done)
 
@@ -246,20 +277,20 @@ since this run doesn't crash without it (only a later `--checkpoint` resume
 does), but the trainer's in-loop eval would still silently be scoring the
 wrong task.
 
-Evaluate — same wrappers and same fixed settings as Experiment 1, with the 7B
-base passed explicitly as the trailing `base_model_dir`:
+Evaluate — same wrapper and same fixed settings as Experiment 1, with the 7B
+base as its own `model_dir`:
 ```bash
 cd ES-capacity
-scripts/run_full_eval_suite.sh \
-  /workspace/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50 \
-  7b-sigma001-iter50 \
-  /workspace/.hf_home/hub/models--Qwen--Qwen2.5-7B/snapshots/d149729398750b98c0af14eb82c78cfe92750796
+scripts/run_eval.sh /workspace/.hf_home/hub/models--Qwen--Qwen2.5-7B/snapshots/d149729398750b98c0af14eb82c78cfe92750796 base 7b-sigma001-iter50
+scripts/run_eval.sh /workspace/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50 trained 7b-sigma001-iter50
 ```
 
 ### Evaluation wall-clock
 
-Base then ES-trained, sequential per benchmark, same 8-GPU sharding. No RL arm
-was run at 7B (see [Later](#later)).
+Base then ES-trained, sequential per benchmark, same 8-GPU sharding. The RL
+arm ([hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo))
+was generated in a separate later pass via `scripts/run_eval.sh`; its
+wall-clock wasn't captured separately and isn't in the table below.
 
 | Benchmark | Gens/model | Base | ES-trained | Base gen/s | ES gen/s |
 |---|---|---|---|---|---|
@@ -285,62 +316,83 @@ behavior to slow down from and throughput converges (18.7 vs 19.4, 23.6 vs
 
 ## Results — Experiment 2 (7B)
 
-**Experiment 1's result does not replicate at 7B.** ES still buys a real
-pass@1 gain on every benchmark, but the gain shrinks monotonically with k, the
-curves cross on 2 of 4 benchmarks, and on AIME24 the *base* model finishes far
-ahead:
+Three models compared, same as Experiment 1: **Base** (`Qwen/Qwen2.5-7B`),
+**ES** (this project's Experiment 2 checkpoint), and **RL**
+([hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo),
+a published GRPO-trained model on the same base). The RL arm's generations
+were added in a later pass, after base/ES; see the caveat under [Evaluation
+wall-clock](#evaluation-wall-clock-1) above.
 
-| Benchmark | pass@1 base → ES | pass@max base → ES | narrow / gain / **net** |
-|---|---|---|---|
-| AIME24 (n=30, k≤512) | 7.14% → 7.98% | 76.67% → 66.67% | 13.3% / 3.3% / **−10.0** |
-| MATH500 (n=500, k≤128) | 61.15% → 67.54% | 95.40% → 95.80% | 1.0% / 1.4% / **+0.4** |
-| Minerva (n=272, k≤128) | 23.14% → 26.99% | 65.81% → 65.81% | 2.9% / 2.9% / **0.0** |
-| OlympiadBench (n=675, k≤128) | 27.95% → 32.39% | 74.67% → 76.30% | 3.4% / 5.0% / **+1.6** |
+**Experiment 1's result does not replicate at 7B — for ES.** ES still buys a
+real pass@1 gain on every benchmark, but the gain shrinks monotonically with
+k, the curves cross on 2 of 4 benchmarks, and on AIME24 the *base* model
+finishes far ahead. **RL looks the opposite of its 1.5B self**: it has by far
+the largest pass@1 lift of the three arms on every benchmark, and by far the
+largest ceiling loss — it narrows on all 4 benchmarks, more than ES on every
+one of them:
+
+| Benchmark | pass@1 base→ES→RL | pass@max base→ES→RL | ES narrow/gain/**net** | RL narrow/gain/**net** |
+|---|---|---|---|---|
+| AIME24 (n=30, k≤512) | 7.14%→7.98%→15.39% | 76.67%→66.67%→56.67% | 13.3/3.3/**−10.0** | 23.3/3.3/**−20.0** |
+| MATH500 (n=500, k≤128) | 61.15%→67.54%→76.04% | 95.40%→95.80%→93.80% | 1.0/1.4/**+0.4** | 3.0/1.4/**−1.6** |
+| Minerva (n=272, k≤128) | 23.14%→26.99%→35.38% | 65.81%→65.81%→62.13% | 2.9/2.9/**0.0** | 5.1/1.5/**−3.6** |
+| OlympiadBench (n=675, k≤128) | 27.95%→32.39%→38.59% | 74.67%→76.30%→73.78% | 3.4/5.0/**+1.6** | 5.5/4.6/**−0.9** |
 
 <table>
 <tr>
-<td><img src="results/7b-sigma001-iter50/aime24_passk.png" width="390" alt="AIME24 pass@k (7B)"></td>
-<td><img src="results/7b-sigma001-iter50/math500_passk.png" width="390" alt="MATH500 pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/math500_threeway_passk.png" width="390" alt="MATH500 pass@k (7B)"></td>
 </tr>
 <tr>
-<td><img src="results/7b-sigma001-iter50/minerva_math_passk.png" width="390" alt="Minerva pass@k (7B)"></td>
-<td><img src="results/7b-sigma001-iter50/olympiadbench_passk.png" width="390" alt="OlympiadBench pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k (7B)"></td>
+<td><img src="results/7b-sigma001-iter50/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k (7B)"></td>
 </tr>
 </table>
 
-The shape is clearest as ES − base in points, per k:
+Per-k numbers for all three arms: **[results/README.md](results/README.md)**.
+The shape is clearest as ES − base / RL − base in points, per k:
 
-| k | AIME24 | MATH500 | Minerva | OlympiadBench |
+| k | AIME24 ES/RL | MATH500 ES/RL | Minerva ES/RL | OlympiadBench ES/RL |
 |---|---|---|---|---|
-| 1 | +0.85 | +6.39 | +3.85 | +4.44 |
-| 2 | +1.03 | +3.99 | +3.39 | +3.95 |
-| 4 | +1.27 | +2.32 | +1.97 | +3.38 |
-| 8 | +1.26 | +1.48 | +0.53 | +2.88 |
-| 16 | +0.90 | +0.97 | −0.32 | +2.32 |
-| 32 | +0.69 | +0.45 | −0.55 | +2.01 |
-| 64 | +0.01 | +0.12 | −0.29 | +1.91 |
-| 128 | −1.44 | +0.40 | ±0.00 | +1.63 |
-| 256 | −4.17 | — | — | — |
-| 512 | **−10.00** | — | — | — |
+| 1 | +0.85 / **+8.26** | +6.39 / **+14.89** | +3.85 / **+12.24** | +4.44 / **+10.64** |
+| 2 | +1.03 / +7.74 | +3.99 / +8.06 | +3.39 / +8.48 | +3.95 / +8.04 |
+| 4 | +1.27 / +6.11 | +2.32 / +3.89 | +1.97 / +4.33 | +3.38 / +6.11 |
+| 8 | +1.26 / +4.71 | +1.48 / +1.39 | +0.53 / +1.20 | +2.88 / +4.57 |
+| 16 | +0.90 / +4.45 | +0.97 / −0.19 | −0.32 / −1.04 | +2.32 / +2.98 |
+| 32 | +0.69 / +4.69 | +0.45 / −1.24 | −0.55 / −2.71 | +2.01 / +1.56 |
+| 64 | +0.01 / +3.61 | +0.12 / −1.72 | −0.29 / −3.65 | +1.91 / +0.48 |
+| 128 | −1.44 / **−0.48** | +0.40 / **−1.60** | ±0.00 / **−3.68** | +1.63 / **−0.89** |
+| 256 | −4.17 / −8.18 | — | — | — |
+| 512 | **−10.00 / −20.00** | — | — | — |
 
 Per benchmark:
 
-- **AIME24**: the clean textbook case of the tradeoff — ES ahead through
-  k≈32, tied at k=64, then falling behind, ending 10 points down at pass@512
-  (76.7% base vs 66.7% ES). In question terms ES loses 4 of the 23 questions
-  base can solve at k=512 and gains 1. n=30, so this is the noisiest curve of
-  the four, but it is also the largest effect, and it is corroborated by the
-  training suite's own AIME eval falling 16.7% → 6.7% over the run.
-- **MATH500**: no crossover, but the gap collapses from +6.4 at k=1 to +0.4 at
-  k=128. Both models are near-saturated by then (95.4% / 95.8%) — there is
-  almost no ceiling left to move.
-- **Minerva**: crosses at k≈16 and stays marginally below base through k=64,
-  converging to an exact tie at k=128 (65.81% both). The dips are ≤0.6 points
-  — read this as "flat ceiling", not real narrowing.
-- **OlympiadBench**: the only benchmark that still looks like Experiment 1 —
-  ES above base at every k, with the gap shrinking (+4.4 → +1.6) but never
-  closing. Also the largest question set (675) and the only one with a clear
-  net gain.
+- **AIME24**: the clean textbook case of the ES/base tradeoff — ES ahead
+  through k≈32, tied at k=64, then falling behind, ending 10 points down at
+  pass@512 (76.7% base vs 66.7% ES). In question terms ES loses 4 of the 23
+  questions base can solve at k=512 and gains 1. n=30, so this is the
+  noisiest curve of the four, but it is also the largest effect, and it is
+  corroborated by the training suite's own AIME eval falling 16.7% → 6.7%
+  over the run. **RL is the extreme version of the same story**: best pass@1
+  of the three (15.4%), briefly ties ES around k=64, then falls off a cliff —
+  56.7% at pass@512, 20 points under base and 10 under ES.
+- **MATH500**: ES has no crossover, but the gap collapses from +6.4 at k=1 to
+  +0.4 at k=128 — both models near-saturated by then (95.4% / 95.8%), almost
+  no ceiling left to move. **RL crosses below base around k≈16** despite a
+  pass@1 nearly 15 points above base (76.0% vs 61.2%), finishing 1.6 points
+  under base and 2.0 under ES at k=128.
+- **Minerva**: ES crosses at k≈16 and stays marginally below base through
+  k=64, converging to an exact tie at k=128 (65.81% both) — read this as
+  "flat ceiling", not real narrowing. **RL is Minerva's worst case for
+  ceiling loss**: crosses below base at k≈16 and finishes 3.7 points under
+  it, the largest RL narrowing of the four benchmarks, despite having the
+  benchmark's largest pass@1 lift (+12.2 over base).
+- **OlympiadBench**: the only benchmark where ES still looks like
+  Experiment 1 — above base at every k, gap shrinking (+4.4 → +1.6) but never
+  closing, the largest question set (675) and ES's only clear net gain.
+  **RL stays above base the longest of the four benchmarks too**, only
+  dipping below at the very end (k=128: 73.78% vs base 74.67%, −0.89) — the
+  smallest RL narrowing, mirroring it being ES's best case as well.
 
 **Caveat that cuts both ways — headroom.** The 7B base is far stronger than
 1.5B (MATH500 pass@128: 95.4% vs 78.6%; OlympiadBench 74.7% vs 44.7%), so
@@ -348,18 +400,22 @@ there is much less ceiling available to expand into, and a fixed 50-iteration
 ES budget is a proportionally smaller intervention on a 7B model. Some of the
 shrinking net gain is that, not necessarily "ES stops working at scale". What
 this cannot explain is AIME24, where the ceiling *dropped* by 10 points — that
-is capability loss, not saturation.
+is capability loss, not saturation. The same headroom logic applies even more
+to RL's pass@1 lift, which is not compute-matched here either (see [Reading
+any ES-vs-RL curve in this repo](#reading-any-es-vs-rl-curve-in-this-repo));
+what it doesn't explain is why RL's *ceiling loss* is uniformly larger than
+ES's across all 4 benchmarks, not just its pass@1 gain.
 
 ### The two experiments together
 
-Net question-coverage change (gain − narrow), same ES recipe at both scales:
+Net question-coverage change (gain − narrow), both methods at both scales:
 
-| Benchmark | 1.5B | 7B |
-|---|---|---|
-| AIME24 | **+13.3** | **−10.0** |
-| MATH500 | **+10.6** | **+0.4** |
-| Minerva | **+3.3** | **0.0** |
-| OlympiadBench | **+9.4** | **+1.6** |
+| Benchmark | 1.5B ES | 1.5B RL | 7B ES | 7B RL |
+|---|---|---|---|---|
+| AIME24 | +13.3 | +26.7 | **−10.0** | **−20.0** |
+| MATH500 | +10.6 | +11.4 | **+0.4** | **−1.6** |
+| Minerva | +3.3 | +7.0 | **0.0** | **−3.6** |
+| OlympiadBench | +9.4 | +9.5 | **+1.6** | **−0.9** |
 
 At 1.5B, ES looked like genuine capacity expansion. At 7B, the same recipe
 looks like an almost pure sampling-efficiency gain — pass@1 up on all four
@@ -368,10 +424,21 @@ profile the source RLVR paper attributes to gradient-based RLVR, which
 weakens the project's original framing: "gradient-free ES avoids the
 narrowing" does not hold as a scale-independent claim on this evidence.
 
+**But RL's own narrowing is the more consistent pattern of the two.** At
+1.5B, RL narrowed *less* than ES on 3 of 4 benchmarks (see [Results —
+Experiment 1](#results--experiment-1-qwen25-15b)); at 7B that reverses
+completely — RL narrows on all 4 benchmarks, and by a wider margin than ES on
+every one. ES's narrowing-resistance doesn't hold across scale, but neither
+does RL's *lack* of it — RL looks bad at both scales, worse at 7B, while ES
+is the arm that's clean at one scale and merely flat-to-down at the other.
+Compared to its own base, ES's story is scale-dependent; compared to RL
+directly, ES comes out ahead at both scales on this measure.
+
 Two honest limits on that conclusion: the 7B base has far less headroom (see
 the caveat above), and there is still no compute-matched RL arm at either
-scale — so this says something about ES across scale, and still nothing
-rigorous about ES *versus* RLVR.
+scale — so the ES-vs-base finding says something about ES across scale, but
+the ES-vs-RL comparison above is still not a rigorous "ES vs RLVR" claim,
+just a same-checkpoints comparison at both scales.
 
 ## Additional runs: perturbation scale and run length
 
@@ -445,51 +512,17 @@ is the knob that hasn't been tried.
 
 ## Out-of-domain check: GPQA-diamond
 
-All post-training here is math-only, so the obvious question is what it costs
-elsewhere. GPQA-diamond zero-shot (198 graduate-level science questions,
-4-choice, scored by log-likelihood — **not** pass@k; a different probe than
-everything above), run across all 8 arms with `lm_eval`:
-
-| Arm | acc | vs. its base | McNemar (paired, exact) |
-|---|---|---|---|
-| 1.5B base | 26.3% (52/198) | — | — |
-| 1.5B ES | **34.8% (69/198)** | **+8.6** | 27 gained / 10 lost, **p = 0.008** |
-| 1.5B RL (SimpleRL-Zoo) | 27.3% (54/198) | +1.0 | 5 gained / 3 lost, p = 0.73 |
-| 7B base | 32.8% (65/198) | — | — |
-| 7B ES (σ=0.001, iter50) | 31.8% (63/198) | −1.0 | 9 gained / 11 lost, p = 0.82 |
-| 7B ES (σ=0.0025, iter50) | 30.3% (60/198) | −2.5 | 12 gained / 17 lost, p = 0.46 |
-| 7B ES (σ=0.001, iter100) | 28.8% (57/198) | −4.0 | 6 gained / 14 lost, p = 0.12 |
-| 7B RL (SimpleRL-Zoo) | 32.8% (65/198) | ±0.0 | 2 gained / 2 lost, p = 1.00 |
-
-**At 1.5B, a large gain in the wrong direction from what "forgetting" predicts.**
-**Math-only ES training improves out-of-domain science QA by 8.6 points** — the
-only change in the table that survives a paired test. Note where it starts
-from: 4-choice chance is 25%, and 1.5B base (26.3%) and 1.5B RL (27.3%) are
-both indistinguishable from guessing, so ES is the only 1.5B arm doing better
-than chance at all. Whether that is real science knowledge or just
-better-calibrated option scoring on a model that could previously do neither,
-this run can't say.
-
-**At 7B, a consistent downward drift that no single test can confirm.** All
-three 7B ES arms land below their base (−1.0, −2.5, −4.0), and the ordering
-tracks how much the weights were moved: further from the base weights (more
-iterations, or a larger σ) means lower GPQA. No individual arm's drop is
-significant at n=198 — the best is p = 0.12 — and the ES arms are not
-independent of each other (iter100 *is* iter50, trained further), so this is
-one weak signal, not three. The paired iter50 → iter100 comparison is the
-cleanest version of it: −3.0 points, 4 gained / 10 lost, p = 0.18.
-
-Read together: at 1.5B the ES run was a large intervention on a weak model and
-moved things in *both* domains; at 7B it was a small intervention that left
-in-domain pass@k roughly flat and may be slowly costing out-of-domain accuracy
-as it runs longer. What the table does rule out is a *large* out-of-domain
-collapse at 7B — so Experiment 2's AIME24 narrowing isn't a symptom of general
-degradation. What it no longer supports is a flat "no forgetting anywhere".
-
-Driver: `scripts/run_gpqa_sweep.sh` (single GPU, vLLM backend, ~1.5 min/model,
-~9 min for the sweep), reduced to committed CSVs by `scripts/analyze_gpqa.py`.
-Per-arm scores, the full per-question correctness matrix, and every McNemar
-pair: [`results/gpqa/`](results/gpqa/).
+Paused pending a redo. An earlier zero-shot sweep (198 graduate-level science
+questions, 4-choice, scored by log-likelihood — **not** pass@k — `lm_eval`,
+all 8 arms) found a large, statistically significant out-of-domain gain from
+1.5B ES training (+8.6 points vs. its base, p = 0.008) and a smaller,
+individually-insignificant downward drift across all three 7B ES arms
+(−1.0 to −4.0 points, best p = 0.12) — opposite signs, on a 1.5B base model
+sitting at chance (26.3% vs. 25% chance), which is exactly the profile that's
+worth re-confirming with a second seed and a bigger out-of-domain benchmark
+rather than trusting from one 198-question, single-seed sweep. The sweep
+script and reduced CSVs have been removed pending that redo; see
+[Later](#later).
 
 ## Training dynamics
 
@@ -519,11 +552,13 @@ counterpart to compare against: the population mean *falls* the whole run,
 ~1708 tokens at iteration 1 to ~787 by iteration 51, so the 1.5B model learns
 to be **more concise while getting more correct** — not to think longer.
 Full per-iteration series: `results/1.5b-sigma001-iter50/wandb_curves.csv`
-(`scripts/plot_training_curves.py` will plot it, or regenerate from
-`--wandb-run chunhinma00-personal/es-finetuning/it2de910`).
+(kept locally, not committed) or the W&B run itself,
+`chunhinma00-personal/es-finetuning/it2de910`. The four `train_*.png` plots
+derived from it are likewise local only.
 
 Per-iteration reward for every run is in `results/<run>/training_curves.csv`,
-extracted from the trainer's stdout by `scripts/parse_training_log.py`.
+extracted from the trainer's stdout by a script that's since been retired —
+the CSVs are the committed record now, not regenerable from this repo alone.
 
 ### The trainer's own eval suite, and its noise floor
 
@@ -572,8 +607,8 @@ where the same effect is measured over 15,360 completions.
 
 ## Model
 
-The two headline checkpoints are published, in HF format, converted from the raw
-`es-at-scale` checkpoints with `scripts/convert_to_hf.py --verify`:
+Published checkpoints, in HF format, converted from the raw `es-at-scale`
+checkpoints with `scripts/convert_to_hf.py --verify`:
 
 | Run | Checkpoint |
 |---|---|
@@ -587,13 +622,165 @@ are strictly no-better / slightly worse than iter50. The remaining
 unpublished additional-run checkpoint is 7B σ=0.0025 iter50. Full numbers
 for both are in `results/`.
 
+## Planned: matched-budget ES vs. RL
+
+**Not yet run.** The single biggest weakness in this repo is that every
+ES-vs-RL number compares an ES run to an already-fully-trained public
+checkpoint. This section fixes what "matched" should mean before spending money
+on it, because the obvious answers conflict.
+
+### Reshape GRPO to ES's geometry, don't reshape ES
+
+Holding the published recipes, matching on one axis un-matches the others:
+
+| Axis to match | ES config needed | Exposures | Epochs | Generations |
+|---|---|---|---|---|
+| **Generations** (819,200) | 100 iters, batch 256, pop 32 | 25,600 | 3.00 | 819,200 ✅ |
+| **Data** (102,400 exposures) | 400 iters, batch 256, pop 32 | 102,400 ✅ | 12.01 ✅ | 3,276,800 (4x RL) |
+| **Both** | 100 iters, batch 1024, **pop 8** | 102,400 ✅ | 12.01 ✅ | 819,200 ✅ |
+
+The third row is a trap. Exact dual parity by moving *ES* has one solution at
+100 steps and it is **population 8** — a tiny sample for a direction in 7.6e9
+dimensions, with binary reward over 1,024 prompts making the fitness ties that
+rank shaping depends on much worse. It would test a broken ES, not ES.
+
+**Move GRPO instead.** Retrain the RL arm at **batch 256, 32 samples per
+prompt** — ES's exact geometry — and every axis matches at once, with neither
+method pushed anywhere strange:
+
+| | Steps | Prompts/step | ×per prompt | Exposures | Epochs | Generations |
+|---|---|---|---|---|---|---|
+| ES iter50 | 50 | 256 | 32 population | 12,800 | 1.50 | 409,600 |
+| **GRPO reshaped** | 50 | 256 | 32 rollouts | 12,800 | 1.50 | 409,600 |
+| ES iter100 | 100 | 256 | 32 population | 25,600 | 3.00 | 819,200 |
+| **GRPO reshaped** | 100 | 256 | 32 rollouts | 25,600 | 3.00 | 819,200 |
+
+### Does reshaping break GRPO? Two effects, opposite signs
+
+**Group size 8 → 32 helps, and at 1.5B it helps a lot.** GRPO's advantage is
+`(r_i − mean(r_group)) / std(r_group)`. Under a binary reward, a group whose
+rollouts all agree has zero advantage everywhere — that prompt contributes
+*nothing*, and its entire generation budget is wasted. P(degenerate) = pᴳ +
+(1−p)ᴳ:
+
+| true pass rate | G=8 | G=32 |
+|---|---|---|
+| 0.01 / 0.99 | 0.92 | 0.73 |
+| 0.05 / 0.95 | 0.66 | 0.19 |
+| 0.10 / 0.90 | 0.43 | 0.03 |
+| 0.50 | 0.01 | 0.00 |
+
+How much that matters depends on where the model sits. Using each model's
+*observed* iteration-1 mean training reward and a Beta difficulty spread, the
+fraction of prompts yielding usable gradient signal:
+
+| Model | Mean reward | G=8 | G=32 | Gain |
+|---|---|---|---|---|
+| 1.5B | 0.014 | 0.15 – 0.25 | 0.33 – 0.42 | **1.7 – 2.2x** |
+| 7B | 0.457 | 0.77 – 0.95 | 0.94 – 1.00 | 1.1 – 1.2x |
+
+At 1.5B, where nearly every training problem is beyond the base model, G=8
+wastes most of its budget on all-wrong groups and G=32 roughly doubles the
+usable signal. At 7B most prompts are mid-difficulty already, so the gain is
+small. Group-mean standard error also halves (0.177 → 0.088 at p=0.5).
+
+**Prompt batch 1024 → 256 hurts.** Four times fewer distinct problems per
+optimizer step. The 32 rollouts within a prompt are correlated, so effective
+problem diversity tracks the *prompt* count, not the generation count — this is
+the real cost, and it is why published work finds an optimum group size rather
+than "bigger is better" under a fixed rollout budget.
+
+**Net expectation: roughly a wash at 7B, plausibly net-positive at 1.5B.** Not a
+drastic change in either direction. Two supporting points: 32 is unremarkable
+as a group size — DeepSeekMath used G=64 at 7B and DAPO uses 512×16, so
+SimpleRL-Zoo's 8 is on the *small* end and this moves toward the mainstream, not
+away from it. And at equal generation count, 256×32 is *cheaper* in wall-clock
+than 1024×8, because vLLM prefix-caches each shared prompt across 32 samples
+instead of 8.
+
+### The protocol
+
+1. **Train our own GRPO arm** at batch 256 / 32 rollouts, rather than using the
+   public checkpoint — the only way to control the budget. Also set
+   `max_response_length=2048` to match ES and the eval, removing the token-cap
+   confound in the same stroke.
+2. **Run it twice: 50 and 100 steps**, giving exact parity with ES iter50 and
+   ES iter100 respectively. The 100-step arm is the headline comparison.
+3. **Keep the published SimpleRL-Zoo checkpoint as a separate reference row**,
+   clearly labelled as fully-trained (12.01 epochs, 1024×8, 8192 tokens). Two
+   RL points — one budget-matched, one fully-trained — is what separates "ES vs
+   RL as methods" from "ES vs a model that saw 8x the data".
+4. **Record wall-clock and total generated tokens alongside generations.**
+   Generation parity is not FLOP parity: GRPO adds a backward pass ES does not
+   have. Report all three and let the reader choose a denominator.
+5. **Run the existing pass@k suite unchanged**, so the new arms drop straight
+   into the tables already here.
+
+**Caveat to carry:** the budget-matched arm sees 1.50 (or 3.00) epochs against
+the published checkpoint's 12.01, so it will almost certainly score *below*
+published SimpleRL-Zoo. That is the intended result of a matched budget, not a
+failed reproduction — but it means this arm must never be described as
+reproducing their numbers. Learning rate may also want revisiting at 4x the
+smaller prompt batch.
+
+### What would falsify what
+
+- If ES-at-matched-generations still shows the 7B pass@k narrowing, the
+  narrowing is a property of ES, not of its small data budget.
+- If it does not, the Experiment 2 result was a budget artifact and the
+  headline claim needs revising.
+- If GRPO-at-2048-tokens loses its pass@1 advantage, part of the published
+  ES-vs-RL gap was the token cap all along.
+
+## Planned: full-MMLU forgetting measurement
+
+**Not yet run.** All post-training here is math-only, so the natural question
+is what it costs elsewhere. GPQA-diamond
+([above](#out-of-domain-check-gpqa-diamond)) is the only out-of-domain
+evidence in the repo, and it is thin for the job: 198 questions, one domain,
+and a 1.5B base model sitting at chance (26.3% vs 25%), which makes its one
+large result impossible to attribute.
+
+Full MMLU is the standard instrument for this and fixes both problems.
+
+| Parameter | Value | Why |
+|---|---|---|
+| Task | `mmlu` (all 57 subjects, **14,042** test questions) | 71x GPQA's question count; the CI shrinks by ~8x. lm_eval reports the aggregate, the 4 categories, and every subject from one run. |
+| Shots | **5** | MMLU's reporting convention, and it lifts the base model off the chance floor that makes the GPQA number ambiguous. Shots come from the dev split and are identical across arms. |
+| Scoring | log-likelihood over `["A","B","C","D"]` | Same probe class as GPQA. **Nothing is generated** — `max_tokens` and `temperature` do not apply. |
+| Arms | 1.5B base/ES/RL, 7B base/ES/ES-iter100/RL | Base is the reference for forgetting; RL is the control that says whether any math post-training does this, or only ES. |
+| Statistic | paired McNemar + 95% CI vs. each arm's own base | Forgetting is a within-question claim, so it needs the paired test, not a difference of two accuracies. |
+
+Driver: not yet written — will be built alongside the GPQA redo
+([Later](#later)), on the same `lm_eval`/vLLM pattern. Runs on a single GPU;
+no rented box needed, unlike the pass@k suite.
+
+**Read-out.** *Catastrophic forgetting* would be a significant drop vs. base
+concentrated in the non-STEM categories (humanities, social sciences) while
+math-adjacent STEM holds or rises — that is the signature of a math-only
+objective overwriting unrelated capability. A uniform drop across all four
+categories is degradation, not forgetting. No significant movement anywhere is
+the null, and given 14,042 questions it would be a genuinely tight null rather
+than the underpowered kind.
+
+The same run also settles the GPQA question. If ES's advantage appears only
+where the base is at chance, it is option-scoring calibration; if it survives
+5-shot on a base scoring ~50%, it is something real. Running the sweep a second
+time at 0-shot isolates that directly, on identical questions, for one extra
+GPU-hour.
+
 ## Later
 
+- **Redo the GPQA sweep, and build the MMLU one alongside it.** The
+  `lm_eval`-based sweep script and its reduced CSVs were removed during a
+  repo cleanup pass; rewriting it is a prerequisite for both the GPQA
+  replication below and the [full-MMLU protocol](#planned-full-mmlu-forgetting-measurement)
+  above.
 - **Chase the 1.5B GPQA gain.** +8.6 points out-of-domain from math-only ES
   training (p = 0.008) is the most interesting unexplained result in the repo,
-  and it rests on 198 questions against a base model at chance. Worth a second
-  seed and a second out-of-domain benchmark (MMLU-STEM, ARC-Challenge) before
-  claiming transfer.
+  and it rests on 198 questions against a base model at chance. The
+  [full-MMLU protocol](#planned-full-mmlu-forgetting-measurement) below is
+  designed to settle it; a second training seed is the other half of the answer.
 - **Is AIME24's 7B narrowing real or n=30 noise?** It is the strongest result
   in Experiment 2 and rests on 30 questions (4 lost, 1 gained). Worth a second
   seed, or AIME25/AMC as an independent hard-benchmark check, before leaning
@@ -616,9 +803,14 @@ for both are in `results/`.
   significance. A 200-iteration run would say whether this is a real monotone
   cost or three draws of noise — it is cheap to check as a side effect of any
   longer run.
-- No RL arm in the 7B pass@k suite (`hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo` is
-  downloaded and is in the GPQA sweep, just not the math suite — another ~2h
-  of generation).
+- **Recompute the 7B base/ES question-level breakdowns.** The first eval box
+  was torn down without keeping any per-question scores, so `results/` holds
+  the aggregate pass@k curves and the base-vs-ES four-way counts but nothing
+  that can be re-paired against a new arm. Raw generation trees (`base/`,
+  `trained/`, `rl/`) are gitignored and local-only, so this keeps recurring
+  unless a box's `results/<run_tag>/` is copied off before the box is
+  released — there's currently no script that reduces them to something
+  committable.
 - A compute-matched RL baseline (capped at similar wall-clock/FLOP budget to
   the ES run, rather than comparing against an already fully-trained public
   checkpoint) would make the ES-vs-RL comparison fair — currently open at both
