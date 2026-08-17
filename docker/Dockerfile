@@ -1,5 +1,5 @@
-# RL-arm training image: ES training (es-at-scale) + verl GRPO training + pass@k
-# analysis (limit-of-RLVR/math_eval), for the ES-capacity project.
+# ES-capacity training image: ES training (es-at-scale) + verl GRPO training +
+# pass@k analysis (limit-of-RLVR/math_eval), for the ES-capacity project.
 #
 # Three dependency stacks in this project are mutually incompatible in one
 # Python env (verified against each repo's own pins as of 2026-08):
@@ -106,8 +106,8 @@ RUN uv venv /venv/eval --python 3.10 && \
 # uv/pip caches purged via UV_NO_CACHE/PIP_NO_CACHE_DIR above; drop apt lists too.
 RUN rm -rf /var/lib/apt/lists/*
 
-COPY docker/on_start.sh /opt/rl-arm/on_start.sh
-RUN chmod +x /opt/rl-arm/on_start.sh
+COPY docker/on_start.sh /opt/es-capacity/on_start.sh
+RUN chmod +x /opt/es-capacity/on_start.sh
 
 LABEL org.opencontainers.image.source="https://github.com/Jaysen-Ma/ES-capacity" \
       org.opencontainers.image.description="ES training + verl GRPO training + pass@k analysis for ES-capacity"

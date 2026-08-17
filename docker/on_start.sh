@@ -1,5 +1,5 @@
 #!/bin/bash
-# Vast "On-start Script" for the RL-arm training template.
+# Vast "On-start Script" for the ES-capacity training template.
 # Runs on every instance boot (fresh instance AND stop/start of an existing
 # one) — idempotent: clones repos onto $WORKSPACE if missing, otherwise pulls.
 # Heavy deps (torch/vllm/verl/flash-attn) are already baked into the image's
@@ -43,7 +43,7 @@ sync_repo https://github.com/Jaysen-Ma/limit-of-RLVR.git     "$WORKSPACE/limit-o
 
 # 8x RTX 3090/4090, no GPU-to-GPU P2P on these boxes (nvidia-smi topo -p2p r
 # reports CNS for every pair) — required for both es-at-scale multi-engine
-# vLLM and verl FSDP, or NCCL hangs at init. See RL_ARM_HANDOFF_PROMPT.md.
+# vLLM and verl FSDP, or NCCL hangs at init.
 ENV_FILE="$WORKSPACE/.env"
 grep -q '^NCCL_P2P_DISABLE=' "$ENV_FILE" 2>/dev/null || echo 'NCCL_P2P_DISABLE=1' >> "$ENV_FILE"
 export NCCL_P2P_DISABLE=1

@@ -1,11 +1,7 @@
-name: Build and push RL-arm training image
+name: Build and push ES-capacity training image
 
 # Builds docker/Dockerfile and pushes to GHCR. Only triggers on changes to
-# docker/ (or manual dispatch) — the flash-attn compile step makes this a
-# genuinely slow build (expect ~1-2.5h on a first/cold run; GHA layer caching
-# makes later builds much faster as long as earlier Dockerfile layers didn't
-# change). No secrets to configure: GITHUB_TOKEN already has GHCR push rights
-# for this repo.
+# docker/ (or manual dispatch)
 
 on:
   push:
@@ -14,11 +10,11 @@ on:
       - "docker/**"
       - ".github/workflows/build-image.yml"
     tags:
-      - "rl-arm-image-v*"
+      - "image-v*"
   workflow_dispatch: {}
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/es-capacity-rl-arm
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/es-capacity
 
 jobs:
   build-and-push:
