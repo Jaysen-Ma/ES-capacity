@@ -80,22 +80,23 @@ the eval dataloader (e.g. resuming training from a checkpoint, see Experiment
 Evaluate — one call per arm, each running all 4 benchmarks through identical
 settings, sharded across every GPU (`n_sampling` = 512 for AIME24, 128 for
 the rest), then one call to analyze every benchmark at once. `run_eval.sh`
-needs `MATH_EVAL_DIR` pointing at a `limit-of-RLVR` checkout (copy
-`config.example.sh` to `config.sh` and set it, or export it — see the
+needs `MATH_EVAL_DIR` pointing at a `limit-of-RLVR` checkout, and resolves
+any model argument that isn't an absolute path against `MODELS_DIR` (copy
+`config.example.sh` to `config.sh` and set both, or export them — see the
 script's header):
 ```bash
 cd ES-capacity
 cp config.example.sh config.sh && vi config.sh   # once per environment
-scripts/run_eval.sh <path-to-1.5b-base> base 1.5b-sigma001-iter50
+scripts/run_eval.sh Qwen2.5-1.5B base 1.5b-sigma001-iter50            # $MODELS_DIR/Qwen2.5-1.5B
 scripts/run_eval.sh <path-to-hf-checkpoint> trained 1.5b-sigma001-iter50
 scripts/run_eval.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
 
 scripts/analyze_passk.py --run-tag 1.5b-sigma001-iter50 \
   --label base --label trained --label rl --baseline base --plot
 ```
-`convert_to_hf.py` first, if starting from a raw `es-at-scale` checkpoint —
-see [Model](#model) below. `analyze_passk.py` works with any 2+ labels (the
-`rl` arm is optional) and skips any benchmark missing for a requested label
+Convert the raw `es-at-scale` checkpoint to HF format first, if starting
+from one — see [Model](#model) below. `analyze_passk.py` works with any 2+
+labels (the `rl` arm is optional) and skips any benchmark missing for a requested label
 rather than failing the whole run.
 
 ### Evaluation wall-clock
@@ -612,7 +613,14 @@ where the same effect is measured over 15,360 completions.
 ## Model
 
 Published checkpoints, in HF format, converted from the raw `es-at-scale`
-checkpoints with `scripts/convert_to_hf.py --verify`:
+checkpoints. `es-at-scale` saves a raw state_dict straight from vLLM's
+internal Qwen2 model, which fuses attention QKV into one `qkv_proj` tensor
+and MLP gate+up into one `gate_up_proj` tensor — HF's `AutoModelForCausalLM`
+expects those split back into `q_proj`/`k_proj`/`v_proj` and
+`gate_proj`/`up_proj` (every other parameter name matches already). The
+converter that did this split was Qwen2.5-specific and isn't part of this
+repo — write your own for whatever architecture you're training if you need
+this step; it's a few dozen lines given the mapping above.
 
 | Run | Checkpoint |
 |---|---|
