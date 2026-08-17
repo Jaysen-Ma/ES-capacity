@@ -35,6 +35,11 @@ venv/
 .env.*
 config.sh
 
+# Qwen2.5-specific checkpoint converter (fused qkv_proj/gate_up_proj -> HF
+# format) — not general-purpose, kept local only. See README's Model section
+# for what conversion needs to do if you're using a different architecture.
+scripts/convert_to_hf.py
+
 # Editors / OS
 .idea/
 .vscode/
