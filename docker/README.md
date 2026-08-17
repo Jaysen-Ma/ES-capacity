@@ -8,21 +8,26 @@ environment, and `on_start.sh` for what runs at every instance boot.
 
 ## 1. First-time setup (build + publish)
 
-This can't be built on a Vast *instance* itself — Vast containers can't run
-Docker-in-Docker. It builds in GitHub Actions instead.
+Build manually and push to GHCR yourself — there's no CI for this (GitHub's
+free-tier Actions runners don't have enough RAM/CPU to get through the verl
+venv's from-source flash-attn compile; it was timing out there).
+
+This also can't be built on a Vast *instance* — Vast containers can't run
+Docker-in-Docker — and it needs an **x86_64** host: the base image and
+`TORCH_CUDA_ARCH_LIST` (`8.0;8.6;8.9;9.0` — 3090/4090/A100/H100) both target
+x86_64 CUDA boxes, so an ARM machine (including Apple Silicon or an ARM dev
+box) can't build it either, only run `docker buildx build --platform
+linux/amd64` against a remote x86_64 builder. Any x86_64 Linux box with
+Docker, enough RAM (flash-attn's compile is the heavy part), and ~60GB free
+disk works — a short-lived rented instance is a reasonable way to get one if
+you don't have one sitting around.
 
 ```bash
-git add docker/ .github/workflows/build-image.yml
-git commit -m "Add ES-capacity training image (ES + verl + pass@k eval)"
-git push
+docker login ghcr.io -u <github-username>   # PAT with write:packages scope
+docker build -f docker/Dockerfile -t ghcr.io/Jaysen-Ma/es-capacity:latest .
+docker push ghcr.io/Jaysen-Ma/es-capacity:latest
 ```
-
-That triggers `.github/workflows/build-image.yml`, which builds
-`docker/Dockerfile` and pushes to `ghcr.io/Jaysen-Ma/es-capacity:latest`.
-**Expect ~1-2.5h on the first run** (the verl venv compiles flash-attn from
-source); later builds reuse GitHub Actions' layer cache and are much faster
-unless an earlier `Dockerfile` layer changed. Watch progress under the repo's
-**Actions** tab.
+**Expect ~1-2.5h** (the verl venv compiles flash-attn from source).
 
 GHCR packages default to **private**. Either:
 - make it public: repo → **Packages** → `es-capacity` → *Package settings*
@@ -32,8 +37,7 @@ GHCR packages default to **private**. Either:
   template (Server `ghcr.io`, your GitHub username, and a PAT with
   `read:packages` scope).
 
-To rebuild after editing the `Dockerfile`, just push again, or trigger
-manually from the Actions tab (`workflow_dispatch`).
+To rebuild after editing the `Dockerfile`, just repeat the build/push above.
 
 ## 2. Vast template field values
 

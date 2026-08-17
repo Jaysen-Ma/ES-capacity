@@ -14,9 +14,8 @@
 # every boot so code is always current. Only the heavy, slow-to-install
 # dependency stacks live in the image.
 #
-# Build:
+# Build (needs an x86_64 host — see docker/README.md):
 #   docker build -f docker/Dockerfile -t <tag> .
-# (see .github/workflows/build-image.yml for the CI build that pushes to GHCR)
 
 ARG BASE_IMAGE=vastai/base-image:cuda-12.8.1-cudnn-devel-ubuntu22.04-py310
 FROM ${BASE_IMAGE}
