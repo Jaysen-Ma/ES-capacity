@@ -1,0 +1,85 @@
+{
+  "n_sampling_base_es": 128,
+  "n_sampling_rl": 128,
+  "ks_base_es": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "ks_rl": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "pass_at_k_base": [
+    0.2314165900735293,
+    0.32213038081866613,
+    0.40939512684995255,
+    0.48241285634268716,
+    0.540971544333527,
+    0.5880800108154702,
+    0.6257265356198599,
+    0.6580882352941176
+  ],
+  "pass_at_k_es": [
+    0.26993336397058815,
+    0.35601424994210285,
+    0.4290454565192218,
+    0.487738084598276,
+    0.5378069725609897,
+    0.5826188498348838,
+    0.6228692421233659,
+    0.6580882352941176
+  ],
+  "pass_at_k_rl": [
+    0.3537741268382353,
+    0.4069158175081056,
+    0.4526669072156422,
+    0.49441321579288827,
+    0.5306010900462574,
+    0.5609865897281696,
+    0.5892200480715983,
+    0.6213235294117647
+  ],
+  "four_way_breakdown_es_vs_base": {
+    "n_questions": 272,
+    "counts": {
+      "base_solved_trained_solved": 171,
+      "base_solved_trained_failed": 8,
+      "base_failed_trained_solved": 8,
+      "base_failed_trained_failed": 85
+    },
+    "fractions_pct": {
+      "base_solved_trained_solved": 62.9,
+      "base_solved_trained_failed": 2.9,
+      "base_failed_trained_solved": 2.9,
+      "base_failed_trained_failed": 31.2
+    }
+  },
+  "four_way_breakdown_rl_vs_base": {
+    "n_questions": 272,
+    "counts": {
+      "base_solved_trained_solved": 165,
+      "base_solved_trained_failed": 14,
+      "base_failed_trained_solved": 4,
+      "base_failed_trained_failed": 89
+    },
+    "fractions_pct": {
+      "base_solved_trained_solved": 60.7,
+      "base_solved_trained_failed": 5.1,
+      "base_failed_trained_solved": 1.5,
+      "base_failed_trained_failed": 32.7
+    }
+  },
+  "note": null
+}

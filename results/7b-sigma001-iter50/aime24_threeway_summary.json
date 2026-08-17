@@ -1,0 +1,95 @@
+{
+  "n_sampling_base_es": 512,
+  "n_sampling_rl": 512,
+  "ks_base_es": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512
+  ],
+  "ks_rl": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256,
+    512
+  ],
+  "pass_at_k_base": [
+    0.07135416666666666,
+    0.11389152193411606,
+    0.16598965126325577,
+    0.22406692420141922,
+    0.2844357597851724,
+    0.347200129337392,
+    0.42129516016301316,
+    0.5141964016381911,
+    0.6261560893281171,
+    0.7666666666666667
+  ],
+  "pass_at_k_es": [
+    0.07981770833333328,
+    0.124154028049576,
+    0.17868850432629385,
+    0.23670289253770918,
+    0.29341764256048847,
+    0.354140309858035,
+    0.42143489461999667,
+    0.4998149403478535,
+    0.5844426072951133,
+    0.6666666666666666
+  ],
+  "pass_at_k_rl": [
+    0.15390625,
+    0.19133362891389433,
+    0.22705634695544658,
+    0.27116039113994417,
+    0.3289196483595765,
+    0.3940705695149969,
+    0.45735151042509764,
+    0.509406478723032,
+    0.5444027749179396,
+    0.5666666666666667
+  ],
+  "four_way_breakdown_es_vs_base": {
+    "n_questions": 30,
+    "counts": {
+      "base_solved_trained_solved": 19,
+      "base_solved_trained_failed": 4,
+      "base_failed_trained_solved": 1,
+      "base_failed_trained_failed": 6
+    },
+    "fractions_pct": {
+      "base_solved_trained_solved": 63.3,
+      "base_solved_trained_failed": 13.3,
+      "base_failed_trained_solved": 3.3,
+      "base_failed_trained_failed": 20.0
+    }
+  },
+  "four_way_breakdown_rl_vs_base": {
+    "n_questions": 30,
+    "counts": {
+      "base_solved_trained_solved": 16,
+      "base_solved_trained_failed": 7,
+      "base_failed_trained_solved": 1,
+      "base_failed_trained_failed": 6
+    },
+    "fractions_pct": {
+      "base_solved_trained_solved": 53.3,
+      "base_solved_trained_failed": 23.3,
+      "base_failed_trained_solved": 3.3,
+      "base_failed_trained_failed": 20.0
+    }
+  },
+  "note": null
+}

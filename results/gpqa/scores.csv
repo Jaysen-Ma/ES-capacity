@@ -1,9 +1,0 @@
-arm,acc,n_correct,n_total,acc_stderr,has_per_question,model_path
-1.5B-ES,0.348485,69,198,0.033949,True,/workspace/es-at-scale/experiments/math-run/hf-checkpoint-iter50
-1.5B-RL,0.272727,54,198,0.031731,False,/workspace/.hf_home/hub/models--hkust-nlp--Qwen-2.5-1.5B-SimpleRL-Zoo/snapshots/c014edac2e4bbaba644d7af74dc22d4526ec51c9
-1.5B-base,0.262626,52,198,0.031353,True,/workspace/.hf_home/hub/models--Qwen--Qwen2.5-1.5B/snapshots/8faed761d45a263340a0528343f099c05c9a4323
-7B-ES,0.318182,63,198,0.033185,True,/workspace/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter50
-7B-ES-iter100,0.287879,57,198,0.032259,True,/workspace/es-at-scale/experiments/qwen7b-math-run/hf-checkpoint-iter100
-7B-ES-sigma0025-iter50,0.30303,60,198,0.032743,True,experiments/qwen7b-math-sigma0025-b256/hf-checkpoint-iter50
-7B-RL,0.328283,65,198,0.033457,False,/workspace/.hf_home/hub/models--hkust-nlp--Qwen-2.5-7B-SimpleRL-Zoo/snapshots/d630142f26acc8adf8051298cba8023232169d56
-7B-base,0.328283,65,198,0.033457,True,/workspace/.hf_home/hub/models--Qwen--Qwen2.5-7B/snapshots/d149729398750b98c0af14eb82c78cfe92750796

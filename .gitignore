@@ -60,25 +60,49 @@ wandb/
 # Everything below is reproducible and is reduced to committed CSV/JSON summaries
 # by scripts/. The rule throughout: derived results in git, raw dumps out.
 
-# Raw per-shard pass@k generations (large; regenerate via
-# run_base_vs_trained_eval.sh / run_third_model_eval.sh).
+# Raw per-shard pass@k generations (gigabytes; every completion in full).
+# Regenerate via scripts/run_eval.sh, one arm at a time. analyze_passk.py
+# reads directly from these — nothing reduces them for git, so they stay
+# local only, and a torn-down eval box takes its per-question record with it.
 results/*/base/
 results/*/trained/
 results/*/rl/
 results/*/*.log
 results/*_run.log
 
-# Raw lm-eval-harness tree for the GPQA sweep. Reduced to results/gpqa/*.csv by
-# scripts/analyze_gpqa.py, and reproducible in ~9min via run_gpqa_sweep.sh. Kept
-# out of git because its samples_*.jsonl embed the verbatim benchmark text —
-# a presigned S3 URL in the GPQA corpus once tripped GitHub secret scanning.
+# Raw lm-eval-harness tree for the GPQA sweep. The sweep script and its
+# reducer have been removed pending a redo (see the main README's GPQA
+# section), and its samples_*.jsonl embed the verbatim benchmark text — a
+# presigned S3 URL in the GPQA corpus once tripped GitHub secret scanning.
 results/gpqa_results/
 
-# Raw trainer stdout (~1.6MB, 7 runs). Reduced to per-run training_curves.csv +
-# inloop_eval.csv by scripts/parse_training_log.py. Covered by `logs/` above;
-# spelled out here so the intent is obvious.
+# Reduced GPQA CSVs, likewise untracked pending the redo above.
+results/gpqa/
+
+# Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
+# git-tracked; every other run stays local only.
+results/7b-sigma001-iter100/
+results/7b-sigma0025-iter50/
+results/7b-sigma0025-b64-aborted/
+results/7b-sigma005-b64-aborted/
+results/7b-sigma01-b64-aborted/
+
+# W&B per-iteration series and derived plots for the 1.5B run — kept locally,
+# not committed (no script left in the repo regenerates the plots from it).
+results/1.5b-sigma001-iter50/wandb_curves.csv
+results/1.5b-sigma001-iter50/train_*.png
+
+# Raw trainer stdout (~1.6MB, 7 runs). training_curves.csv + inloop_eval.csv
+# were derived from these by a now-removed script; the CSVs stay committed as
+# the record, the raw logs stay local. Covered by `logs/` above; spelled out
+# here so the intent is obvious.
 results/logs/
 
 # Transient per-shard model copies from run_sharded_eval.sh (cleaned up on
 # exit via its EXIT trap; ignored defensively in case a run dies uncleanly)
 **/model_shards.*/
+
+# Staging area for trees pulled off a rented eval box. Raw and large (a full
+# 2-scale pass@k tree is ~2.2GB).
+results/results/
+.scratch/
