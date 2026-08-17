@@ -6,12 +6,12 @@
 # analyze_passk.py compares whichever labels you point it at.
 #
 # Usage:
-#   ./run_eval.sh <model_dir_or_name> <label> <run_tag> [n_sampling_override]
+#   ./run_eval.sh <model_dir_or_config_key> <label> <run_tag> [n_sampling_override]
 # e.g.
-#   ./run_eval.sh Qwen2.5-7B base 7b-sigma001-iter50                 # resolved as $MODELS_DIR/Qwen2.5-7B
+#   ./run_eval.sh QWEN25_7B_BASE base 7b-sigma001-iter50   # looks up $QWEN25_7B_BASE from config.sh
 #   ./run_eval.sh /path/to/hf-checkpoint-iter50 trained 7b-sigma001-iter50   # absolute path, used as-is
-#   ./run_eval.sh SimpleRL-Zoo-7B rl 7b-sigma001-iter50
-#   ./run_eval.sh SimpleRL-Zoo-7B rl 7b-sigma001-iter50 32   # same n_sampling=32 for all 4 benchmarks
+#   ./run_eval.sh QWEN25_7B_RL rl 7b-sigma001-iter50
+#   ./run_eval.sh QWEN25_7B_RL rl 7b-sigma001-iter50 32   # same n_sampling=32 for all 4 benchmarks
 #
 # n_sampling_override, if given, replaces every benchmark's n_sampling below
 # (e.g. for a cheap "does it already cross at low k" check before committing
@@ -25,10 +25,11 @@
 # it yourself; on a box following docker/on_start.sh's layout it defaults to
 # $WORKSPACE/limit-of-RLVR/math/examples/math_eval).
 #
-# <model_dir_or_name>: an absolute path is used as-is. Anything else is
-# resolved as $MODELS_DIR/<name> — set MODELS_DIR in config.sh (or export
-# it) to say where you keep model snapshots, so commands don't need to
-# hardcode a full path per box.
+# <model_dir_or_config_key>: each model gets its own explicit path — no
+# shared "models root" is assumed. If the argument names a variable defined
+# in config.sh (or exported), that variable's value is used as the model
+# path; otherwise the argument itself is used as the path (so an absolute
+# path always works with no config needed).
 set -euo pipefail
 
 MODEL_DIR=$1
@@ -52,17 +53,9 @@ if [ -z "${MATH_EVAL_DIR:-}" ]; then
     exit 1
 fi
 
-case "$MODEL_DIR" in
-    /*) ;;  # already absolute, use as-is
-    *)
-        if [ -z "${MODELS_DIR:-}" ]; then
-            echo "ERROR: '$MODEL_DIR' is not an absolute path, and MODELS_DIR isn't set to resolve it against." >&2
-            echo "       Copy config.example.sh to config.sh and set MODELS_DIR, or pass an absolute model path." >&2
-            exit 1
-        fi
-        MODEL_DIR="$MODELS_DIR/$MODEL_DIR"
-        ;;
-esac
+if [[ "$MODEL_DIR" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ -n "${!MODEL_DIR:-}" ]; then
+    MODEL_DIR="${!MODEL_DIR}"
+fi
 
 PROMPT_TYPE="qwen-boxed"
 TEMPERATURE=0.6

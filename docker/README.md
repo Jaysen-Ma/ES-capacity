@@ -76,7 +76,7 @@ cd $WORKSPACE/limit-of-RLVR/math/examples/math_eval
 
 # ES-capacity's own wrapper scripts (eval + analysis — plain deps, /venv/main is fine)
 cd $WORKSPACE/ES-capacity
-scripts/run_eval.sh <model_dir_or_name> <label> <run_tag>
+scripts/run_eval.sh <model_dir_or_config_key> <label> <run_tag>
 scripts/analyze_passk.py --run-tag <run_tag> --label ... --baseline ... --plot
 ```
 `run_eval.sh` needs `MATH_EVAL_DIR`; since `on_start.sh` already clones

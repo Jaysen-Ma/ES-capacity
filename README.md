@@ -80,16 +80,17 @@ the eval dataloader (e.g. resuming training from a checkpoint, see Experiment
 Evaluate — one call per arm, each running all 4 benchmarks through identical
 settings, sharded across every GPU (`n_sampling` = 512 for AIME24, 128 for
 the rest), then one call to analyze every benchmark at once. `run_eval.sh`
-needs `MATH_EVAL_DIR` pointing at a `limit-of-RLVR` checkout, and resolves
-any model argument that isn't an absolute path against `MODELS_DIR` (copy
-`config.example.sh` to `config.sh` and set both, or export them — see the
-script's header):
+needs `MATH_EVAL_DIR` pointing at a `limit-of-RLVR` checkout, and if a model
+argument names a variable from `config.sh` it resolves to that variable's
+path — each model gets its own explicit entry, there's no shared "models
+root" assumed (copy `config.example.sh` to `config.sh` and fill in both, or
+export the variables yourself — see the script's header):
 ```bash
 cd ES-capacity
 cp config.example.sh config.sh && vi config.sh   # once per environment
-scripts/run_eval.sh Qwen2.5-1.5B base 1.5b-sigma001-iter50            # $MODELS_DIR/Qwen2.5-1.5B
-scripts/run_eval.sh <path-to-hf-checkpoint> trained 1.5b-sigma001-iter50
-scripts/run_eval.sh <third-model-dir> rl 1.5b-sigma001-iter50 [n_sampling_override]
+scripts/run_eval.sh QWEN25_1_5B_BASE base 1.5b-sigma001-iter50   # resolves $QWEN25_1_5B_BASE
+scripts/run_eval.sh QWEN25_1_5B_ES trained 1.5b-sigma001-iter50
+scripts/run_eval.sh QWEN25_1_5B_RL rl 1.5b-sigma001-iter50 [n_sampling_override]
 
 scripts/analyze_passk.py --run-tag 1.5b-sigma001-iter50 \
   --label base --label trained --label rl --baseline base --plot
