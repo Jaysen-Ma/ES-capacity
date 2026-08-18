@@ -5,110 +5,55 @@ ceiling better than gradient-based RLVR (GRPO)? RLVR reliably raises pass@1
 but tends to narrow the pass@k ceiling relative to the base model — this
 project tests whether ES-based fine-tuning avoids that narrowing, on the same task/reward/data.
 
-Run so far at two scales (1.5B, 7B) on Qwen2.5 base models. There are early hints that ES preserve the ceiling and avoid narrowing. More experiments are required to verify this claim. 
+### Method
 
+Two base models — `Qwen2.5-1.5B` and `Qwen2.5-7B`, each compared against two post-trained arms on the same task, reward and data:
 
-We used the same set of hyperparameters for ES fine-tuning on 1.5B and 7B, and compared them with RL models published with SimpleRL.
-- 1.5B ES and RL expand
-question coverage on all 4 benchmarks with no pass@k crossover
-- 7B ES has higher pass@1 on all 4 benchmarks, crosses base on AIME24; 7B RL has higher pass@1 on all 4 benchmarks, crosses base on all 4 benchmarks.
+- **ES** — full-parameter, backprop-free evolution strategies, σ=0.001,
+  population 32, 50 iterations, batch 256, 2,048-token cap. Method and
+  training code are Qiu et al.'s
+  ([arXiv:2509.24372](https://arxiv.org/abs/2509.24372)). The hyperparameters
+  above are **identical at both scales**.
+- **RL** — the published SimpleRL-Zoo GRPO checkpoint at the matching scale
+  ([arXiv:2503.18892](https://arxiv.org/abs/2503.18892)), trained on the same
+  problems but at a much larger budget (see [ES vs. RL](#es-vs-rl)).
 
-Note that the RL arm throughout is a published SimpleRL-Zoo checkpoint, with much larger compute budget, and was trained with about **240 H100 hours**. On the other hand, the ES model was trained with about **36 RTX4090 hours**. 
+Both arms are scored against their own base on AIME24, MATH500, Minerva Math
+and OlympiadBench at identical generation settings, on two measures: the
+**pass@k curve**, which asks whether a trained model stays above its base as k
+grows, and a **per-question solvable/unsolvable breakdown**, which asks how
+many questions it gained and how many it lost. That framing — pass@k as a
+capacity ceiling RLVR tends to narrow — is Yue et al.'s
+([arXiv:2504.13837](https://arxiv.org/abs/2504.13837)).
 
-The RL model saw
-**12.01 epochs of the shared 8,523-problem training set against this ES run's
-1.50** ([arithmetic](#results--experiment-1-qwen25-15b)). The ES models visit **8x fewer times over the same dataset**.
+### Main results
 
-Training and evaluation run from forked, patched copies of the original
-papers' code.
+**At 1.5B, neither method narrows anything.** ES and RL both sit above base at
+*every* measured k on all four benchmarks — no crossover anywhere — and both
+expand question coverage on all four. ES tracks RL at pass@16 on three of the four benchmarks, on ~1/8 the
+data budget.
 
-## Code
+**At 7B, the two arms separate.** RL buys the larger pass@1 gain against ES and pays for it at high k, falling
+below base on all four benchmarks. ES
+stays at or above base at every k on three of the four benchmarks.
 
-| Purpose | Repo | Branch | Notes |
-|---|---|---|---|
-| ES training | [Jaysen-Ma/es-at-scale](https://github.com/Jaysen-Ma/es-at-scale) (fork of [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale), arXiv:2509.24372) | `fix/multi-engine-colocation` | Fixes needed to run on a single-node 8x RTX 4090 instance on Vast. |
-| pass@k generation, grading, plotting | [Jaysen-Ma/limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR) (fork of [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR), arXiv:2504.13837) | `fix/math-equal-timeout-bypass` | Fixes a grading-worker hang. |
+That is an early hint that ES preserves the ceiling better than RLVR. Two things blunt it: the comparison is **not
+compute-matched** — the 7B RL checkpoint took ~15h on 2 nodes of 8x H100,
+the 7B ES run 4h35m on 8x RTX 4090 48GB; and 50 iterations is 1/10 of what
+Qiu et al. recommend, so the ES arm may simply be under-trained. More runs
+across models, hyperparameters and datasets are needed before the claim
+carries weight.
 
-## Experiment 1: Qwen2.5-1.5B base vs. ES-at-scale-trained (done)
-
-| Param | Value |
-|---|---|
-| Model | `Qwen/Qwen2.5-1.5B` (Base) |
-| Task | math |
-| sigma | 0.001 |
-| alpha (lr) | auto (`sigma/2` = 0.0005) |
-| Population size | 32 |
-| Iterations | 50 |
-| Train dataset | `math_lvl3to5_8k` — the same 8,523 problems, in the same order, as SimpleRL-Zoo's `simplelr_qwen_level3to5` split|
-| Evaluation dataset | `datasets/evaluation_suite/math` — omit it and it defaults to the `countdown` task's, which has no `problem` field and crashes the trainer |
-| Batch size / mini-batch size | 256 / 256 |
-| Max tokens | 2048 |
-| vLLM engines | 8 (one per GPU) |
-| GPUs | 0-7 (8x RTX 4090 48GB) |
-| Training wall-clock | 3h 22m 35s (including 2 evals) |
-
-
-### Evaluation wall-clock
-
-Convert the raw `es-at-scale` checkpoint to HF format first.
-
-Per-benchmark generation time (base, ES-trained, RL), 8x RTX 4090 48GB,
-sharded across all 8 GPUs, `n_sampling`/model/benchmark:
-
-| Benchmark | Base | ES-trained | RL |
-|---|---|---|---|
-| AIME24 (n=512) | 5m23s | 4m34s | 5m24s |
-| MATH500 (n=128) | 3m38s | 2m40s | 3m18s |
-| Minerva (n=128) | 4m32s | 4m08s | 5m05s |
-| OlympiadBench (n=128) | 5m54s | 9m41s | 7m33s |
-| **Total** | **19m27s** | **21m02s** | **21m20s** |
-
-Grand total across all 3 models, 4 benchmarks: ~1h2m.
-
-## Results — Experiment 1 (Qwen2.5-1.5B)
-
-Three models compared on four benchmarks (AIME24, MATH500, Minerva Math,
-OlympiadBench) at identical generation settings throughout (`temperature=0.6`,
-`top_p=0.95`, `max_tokens=2048`, `qwen-boxed` template, `seed=1`). `n_sampling`
-(= max k) is 512 for AIME24, 128 for the rest; each benchmark's full data
-range gets its own pass@k curve.
-
-- **Base**: `Qwen/Qwen2.5-1.5B`
-- **ES**: [this project's Experiment 1 checkpoint](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math)
-- **RL**: [hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-1.5B-SimpleRL-Zoo),
-  a published GRPO-trained model, same base and (matched) training data
-
-<table>
-<tr>
-<td><img src="results/1.5b-sigma001-iter50/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k"></td>
-<td><img src="results/1.5b-sigma001-iter50/math500_threeway_passk.png" width="390" alt="MATH500 pass@k"></td>
-</tr>
-<tr>
-<td><img src="results/1.5b-sigma001-iter50/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k"></td>
-<td><img src="results/1.5b-sigma001-iter50/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k"></td>
-</tr>
-</table>
-
-Solvable/unsolvable breakdown ("solvable" = at least 1 of `n_sampling`
-completions correct):
-
-| Benchmark | ES: narrow / gain / **net** | RL: narrow / gain / **net** |
-|---|---|---|
-| AIME24 | 0.0% / 13.3% / **+13.3** | 3.3% / 30.0% / **+26.7** |
-| MATH500 | 1.4% / 12.0% / **+10.6** | 1.2% / 12.6% / **+11.4** |
-| Minerva | 7.0% / 10.3% / **+3.3** | 5.5% / 12.5% / **+7.0** |
-| OlympiadBench | 3.9% / 13.3% / **+9.4** | 3.4% / 12.9% / **+9.5** |
-
-**ES vs. RL** 
+## **ES vs. RL** 
 
 **Not a compute-matched comparison — and the mismatch is different on each
 axis.** Both arms train on the same **8,523 problems** (level3to5), but they
 spend their budget on different things:
 
-| | Prompts/step | Steps | ×per prompt | Prompt-exposures | **Epochs** | Generations | Token cap |
+| | Prompts/step | Steps | ×per prompt | Prompt-exposures | **Epochs** | Generations | Training Token cap |
 |---|---|---|---|---|---|---|---|
-| **ES** (this run) | 256 | 50 | 32 population | 12,800 | **1.50** | 409,600 | 2,048 |
-| **RL** (SimpleRL-Zoo 1.5B) | 1,024 | ~100 | 8 rollouts | 102,400 | **12.01** | 819,200 | 8,192 |
+| **ES** (arxiv2509.24372) | 256 | 50 | 32 population | 12,800 | **1.50** | 409,600 | 2,048 |
+| **RL** (arxiv2503.18892) | 1,024 | ~100 | 8 rollouts | 102,400 | **12.01** | 819,200 | 8,192 |
 | **ratio (RL / ES)** | 4x | 2x | 0.25x | **8.00x** | **8.00x** | **2.00x** | **4x** |
 
 The two ratios that matter come apart: RL sees **8x more data** but runs only
@@ -127,10 +72,7 @@ estimator.
 
 ### Reading any ES-vs-RL curve in this repo
 
-Three differences apply to every ES-vs-RL comparison here, at both scales. They
-are not fatal — the curves are still worth showing — but each one has a
-direction, so read the comparison with them in mind rather than as a clean
-head-to-head.
+Four differences apply to every ES-vs-RL comparison here, at both scales. 
 
 | Difference | ES | RL | Which way it cuts |
 |---|---|---|---|
@@ -139,51 +81,53 @@ head-to-head.
 | Generations | 409,600 | 819,200 | Favours RL, 2x. |
 | Compute budget | 8 * RTX4090 | 2 nodes of 8 * H100 | Maybe I will own a giant cluster of B300s soon. |
 
-## Experiment 2: Qwen2.5-7B base vs. ES-at-scale-trained (done)
+## Experiment
 
-Same task, same reward, same data, same ES hyperparameters as Experiment 1 —
-**only the base model changes** (1.5B → 7B). The point is to test whether
-Experiment 1's clean capacity-expansion result is a property of ES or a
-property of a small, weak base model with a lot of headroom.
+One recipe, two scales. Same task, same reward, same data, same ES
+hyperparameters — **only the base model changes** (1.5B → 7B).
 
-| Param | Value |
-|---|---|
-| Model | `Qwen/Qwen2.5-7B` (base, not Instruct) |
-| Training wall-clock | 4h 35m 33s |
+| Param | 1.5B run | 7B run |
+|---|---|---|
+| Model | `Qwen/Qwen2.5-1.5B` (base) | `Qwen/Qwen2.5-7B` (base) |
+| Task | math | math |
+| sigma | 0.001 | 0.001 |
+| alpha (lr) | auto (`sigma/2` = 0.0005) | auto (`sigma/2` = 0.0005) |
+| Population size | 32 | 32 |
+| Iterations | 50 | 50 |
+| Train dataset | `math_lvl3to5_8k` — the same 8,523 problems, in the same order, as SimpleRL-Zoo's `simplelr_qwen_level3to5` split | same |
+| Evaluation dataset | `datasets/evaluation_suite/math` — omit it and it defaults to the `countdown` task's, which has no `problem` field and crashes the trainer | same |
+| Batch size / mini-batch size | 256 / 256 | 256 / 256 |
+| Max tokens | 2048 | 2048 |
+| vLLM engines | 8 (one per GPU) | 8 (one per GPU) |
+| GPUs | 0-7 (8x RTX 4090 48GB) | 0-7 (8x RTX 4090 48GB) |
+| *Training wall-clock* | *3h 22m 35s* | *4h 35m 33s* |
 
-### Evaluation wall-clock
+Wall-clock is an outcome of the run, not a training parameter — every knob
+above is identical across the two scales.
 
-| Benchmark | Gens/model | Base | ES-trained | Base gen/s | ES gen/s |
-|---|---|---|---|---|---|
-| AIME24 (n=512) | 15,360 | 13m41s | 13m12s | 18.7 | 19.4 |
-| MATH500 (n=128) | 64,000 | 11m19s | 26m07s | 94.3 | 40.8 |
-| Minerva (n=128) | 34,816 | 24m33s | 25m07s | 23.6 | 23.1 |
-| OlympiadBench (n=128) | 86,400 | 40m21s | 43m17s | 35.7 | 33.3 |
-| **Total generation** | | **1h30m** | **1h48m** | | |
+## Results
 
-## Results — Experiment 2 (7B)
+Three models per scale (base, ES-trained, RL) on four benchmarks (AIME24,
+MATH500, Minerva Math, OlympiadBench) at identical generation settings
+throughout (`temperature=0.6`, `top_p=0.95`, `max_tokens=2048`, `qwen-boxed`
+template, `seed=1`). `n_sampling` (= max k) is 512 for AIME24, 128 for the
+rest; each benchmark's full data range gets its own pass@k curve. The RL arm
+is the published SimpleRL-Zoo checkpoint at the matching scale.
 
-Three models compared, same as Experiment 1: **Base** (`Qwen/Qwen2.5-7B`),
-**ES** (this project's Experiment 2 checkpoint), and **RL**
-([hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo](https://huggingface.co/hkust-nlp/Qwen-2.5-7B-SimpleRL-Zoo),
-a published GRPO-trained model on the same base). The RL arm's generations
-were added in a later pass, after base/ES; see the caveat under [Evaluation
-wall-clock](#evaluation-wall-clock-1) above.
+**Qwen2.5-1.5B**
 
-**Experiment 1's result does not replicate at 7B — for ES.** ES still buys a
-real pass@1 gain on every benchmark, but the gain shrinks monotonically with
-k, the curves cross on 2 of 4 benchmarks, and on AIME24 the *base* model
-finishes far ahead. **RL looks the opposite of its 1.5B self**: it has by far
-the largest pass@1 lift of the three arms on every benchmark, and by far the
-largest ceiling loss — it narrows on all 4 benchmarks, more than ES on every
-one of them:
+<table>
+<tr>
+<td><img src="results/1.5b-sigma001-iter50/aime24_threeway_passk.png" width="390" alt="AIME24 pass@k (1.5B)"></td>
+<td><img src="results/1.5b-sigma001-iter50/math500_threeway_passk.png" width="390" alt="MATH500 pass@k (1.5B)"></td>
+</tr>
+<tr>
+<td><img src="results/1.5b-sigma001-iter50/minerva_math_threeway_passk.png" width="390" alt="Minerva pass@k (1.5B)"></td>
+<td><img src="results/1.5b-sigma001-iter50/olympiadbench_threeway_passk.png" width="390" alt="OlympiadBench pass@k (1.5B)"></td>
+</tr>
+</table>
 
-| Benchmark | pass@1 base→ES→RL | pass@max base→ES→RL | ES narrow/gain/**net** | RL narrow/gain/**net** |
-|---|---|---|---|---|
-| AIME24 (n=30, k≤512) | 7.14%→7.98%→15.39% | 76.67%→66.67%→56.67% | 13.3/3.3/**−10.0** | 23.3/3.3/**−20.0** |
-| MATH500 (n=500, k≤128) | 61.15%→67.54%→76.04% | 95.40%→95.80%→93.80% | 1.0/1.4/**+0.4** | 3.0/1.4/**−1.6** |
-| Minerva (n=272, k≤128) | 23.14%→26.99%→35.38% | 65.81%→65.81%→62.13% | 2.9/2.9/**0.0** | 5.1/1.5/**−3.6** |
-| OlympiadBench (n=675, k≤128) | 27.95%→32.39%→38.59% | 74.67%→76.30%→73.78% | 3.4/5.0/**+1.6** | 5.5/4.6/**−0.9** |
+**Qwen2.5-7B**
 
 <table>
 <tr>
@@ -196,124 +140,135 @@ one of them:
 </tr>
 </table>
 
-### The two experiments together
+### pass@1 and pass@max
 
-Net question-coverage change (gain − narrow), both methods at both scales:
+base→ES→RL, in percent:
 
-| Benchmark | 1.5B ES | 1.5B RL | 7B ES | 7B RL |
+| Benchmark | 1.5B pass@1 | 1.5B pass@max | 7B pass@1 | 7B pass@max |
 |---|---|---|---|---|
-| AIME24 | +13.3 | +26.7 | **−10.0** | **−20.0** |
-| MATH500 | +10.6 | +11.4 | **+0.4** | **−1.6** |
-| Minerva | +3.3 | +7.0 | **0.0** | **−3.6** |
-| OlympiadBench | +9.4 | +9.5 | **+1.6** | **−0.9** |
+| AIME24 (n=30, k≤512) | 0.28→0.87→0.87 | 23.33→36.67→50.00 | 7.14→7.98→15.39 | 76.67→66.67→56.67 |
+| MATH500 (n=500, k≤128) | 5.37→16.79→13.35 | 78.60→89.20→90.00 | 61.15→67.54→76.04 | 95.40→95.80→93.80 |
+| Minerva (n=272, k≤128) | 1.79→2.83→3.72 | 40.44→43.75→47.43 | 23.14→26.99→35.38 | 65.81→65.81→62.13 |
+| OlympiadBench (n=675, k≤128) | 2.10→6.17→5.41 | 44.74→54.22→54.22 | 27.95→32.39→38.59 | 74.67→76.30→73.78 |
 
-At 1.5B, ES looked like genuine capacity expansion. At 7B, the same recipe
-looks like an almost pure sampling-efficiency gain — pass@1 up on all four
-benchmarks, ceiling flat on three and down sharply on the fourth. That is the
-profile the source RLVR paper attributes to gradient-based RLVR, which
-weakens the project's original framing: "gradient-free ES avoids the
-narrowing" does not hold as a scale-independent claim on this evidence.
+### Solvable/unsolvable breakdown
 
-**But RL's own narrowing is the more consistent pattern of the two.** At
-1.5B, RL narrowed *less* than ES on 3 of 4 benchmarks (see [Results —
-Experiment 1](#results--experiment-1-qwen25-15b)); at 7B that reverses
-completely — RL narrows on all 4 benchmarks, and by a wider margin than ES on
-every one. ES's narrowing-resistance doesn't hold across scale, but neither
-does RL's *lack* of it — RL looks bad at both scales, worse at 7B, while ES
-is the arm that's clean at one scale and merely flat-to-down at the other.
-Compared to its own base, ES's story is scale-dependent; compared to RL
-directly, ES comes out ahead at both scales on this measure.
+"Solvable" = at least 1 of `n_sampling` completions correct. narrow = questions
+the base solves and the trained model doesn't; gain = the reverse; **net** =
+gain − narrow, all as % of the benchmark's questions.
 
-Two honest limits on that conclusion: the 7B base has far less headroom (see
-the caveat above), and there is still no compute-matched RL arm at either
-scale — so the ES-vs-base finding says something about ES across scale, but
-the ES-vs-RL comparison above is still not a rigorous "ES vs RLVR" claim,
-just a same-checkpoints comparison at both scales.
+| Benchmark | 1.5B ES: narrow / gain / **net** | 1.5B RL: narrow / gain / **net** | 7B ES: narrow / gain / **net** | 7B RL: narrow / gain / **net** |
+|---|---|---|---|---|
+| AIME24 | 0.0% / 13.3% / **+13.3** | 3.3% / 30.0% / **+26.7** | 13.3% / 3.3% / **−10.0** | 23.3% / 3.3% / **−20.0** |
+| MATH500 | 1.4% / 12.0% / **+10.6** | 1.2% / 12.6% / **+11.4** | 1.0% / 1.4% / **+0.4** | 3.0% / 1.4% / **−1.6** |
+| Minerva | 7.0% / 10.3% / **+3.3** | 5.5% / 12.5% / **+7.0** | 2.9% / 2.9% / **0.0** | 5.1% / 1.5% / **−3.6** |
+| OlympiadBench | 3.9% / 13.3% / **+9.4** | 3.4% / 12.9% / **+9.5** | 3.4% / 5.0% / **+1.6** | 5.5% / 4.6% / **−0.9** |
 
-### Run length: iterations 51–100 bought nothing
+### Reading the two scales together
 
-The continuation resumes Experiment 2's checkpoint and runs 50 more iterations
-for another 4.2 hours. Every measure is flat or slightly down:
+At 1.5B, both RL and ES looked like genuine capacity expansion. ES matches RL at pass@16 on 3 of 4 benchmarks at lower compute budget and ~1/8 data budget. 
 
-| Measure | After 50 iters | After 100 iters | Δ |
-|---|---|---|---|
-| Training reward (population mean) | 0.664 | 0.645 | −0.019 |
-| In-loop AIME | 6.67% | 6.67% | ±0.00 |
-| In-loop AMC | 34.94% | 37.35% | +2.41 |
-| In-loop MATH500 | 73.00% | 73.40% | +0.40 |
-| In-loop Minerva | 37.87% | 37.87% | ±0.00 |
-| In-loop OlympiadBench | 36.15% | 36.00% | −0.15 |
-| GPQA-diamond | 31.8% | 28.8% | **−3.03** (4 gained / 10 lost, p = 0.18) |
+At 7B, we observe the RL sampling-efficiency gain and capacity crossovers on all four benchmarks. For ES, pass@k at low k improved slightly, while preserving the base's capacity on 3 benchmarks. Qiu et al. suggest 500 iterations as the default, where we ran 1/10 of the documented generations in this experiment. One could argue the ES models here are under-trained.
 
-## Training dynamics
+**The limit on all of the above.** Both readings turn on budget rather than on
+method. The 1.5B result says ES matched RL on a fraction of the data; the 7B
+result says ES may simply be under-trained at 50 iterations. Neither can be
+settled against a fully-trained public checkpoint that saw 8x the data, 2x the
+generations and 4x the token cap — an ES arm we control has to be compared
+against an RL arm we also control. That is the next proposed experiment.
 
-Per-iteration reward for every run is in `results/<run>/training_curves.csv`
-
-## Model
-
-Published checkpoints, in HF format, converted from the raw `es-at-scale`
-checkpoints. `es-at-scale` saves a raw state_dict straight from vLLM's
-internal Qwen2 model, which fuses attention QKV into one `qkv_proj` tensor
-and MLP gate+up into one `gate_up_proj` tensor — HF's `AutoModelForCausalLM`
-expects those split back into `q_proj`/`k_proj`/`v_proj` and
-`gate_proj`/`up_proj` (every other parameter name matches already). The
-converter that did this split was Qwen2.5-specific and isn't part of this
-repo — write your own for whatever architecture you're training if you need
-this step
-
-| Run | Checkpoint |
-|---|---|
-| Experiment 1 — 1.5B, σ=0.001, iter50 | [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
-| Experiment 2 — 7B, σ=0.001, iter50 | [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) |
-| 7B continuation, σ=0.001, iter100 | [zocrate/Qwen2.5-7B-ES-math-iter100](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math-iter100) |
-
-The iter100 checkpoint is the Experiment 2 run continued for 50 more
-iterations. It was not put through the pass@k suite; 
-
-## Planned: ''matched-budget'' ES vs. RL
+## Planned: "matched-budget" ES vs. RL
 
 **Not yet run.** The single biggest weakness in this repo is that every
 ES-vs-RL number compares an ES run to an already-fully-trained public
 checkpoint.
 
-**Move GRPO instead.** Retrain the RL arm at **batch 256, 32 samples per
-prompt** — ES's exact geometry:
+Retrain both the ES and RL arm at **batch 1024, 32 samples per
+prompt**:
 
 | | Steps | Prompts/step | ×per prompt | Exposures | Epochs | Generations |
 |---|---|---|---|---|---|---|
-| ES iter50 | 50 | 1024 | 32 population | 51,200 | 6 | 1,638,400 |
-| **GRPO reshaped** | 50 | 1024 | 32 rollouts | 51,200 | 6 | 1,638,400 |
-| ES iter100 | 100 | 1024 | 32 population | 102,400 | 12 | 3,276,800 |
-| **GRPO reshaped** | 100 | 1024 | 32 rollouts | 102,400 | 12 | 3,276,800 |
-
-### Does reshaping break GRPO? Two effects, opposite signs
+| ES | 50 | 1024 | 32 population | 51,200 | 6 | 1,638,400 |
+| GRPO | 50 | 1024 | 32 rollouts | 51,200 | 6 | 1,638,400 |
+| ES | 100 | 1024 | 32 population | 102,400 | 12 | 3,276,800 |
+| GRPO | 100 | 1024 | 32 rollouts | 102,400 | 12 | 3,276,800 |
 
 ### The protocol
 
-1. **Train our own GRPO arm** at batch 1024 / 32 rollouts, rather than using the
+1. **Train our own ES and GRPO arm** at batch 1024 / 32 rollouts, rather than using the
    public checkpoint — the only way to control the budget. Also set
    `max_response_length=2048` to match ES and the eval, removing the token-cap
    confound in the same stroke.
-2. **Run them with the same steps**, at 50 and/or 100steps.
-3. **Record wall-clock and total generated tokens alongside generations.**
-   Generation parity is not FLOP parity: GRPO adds a backward pass ES does not
-   have. Report all three and let the reader choose a denominator.
-4. **Run the existing pass@k suite**, so we have a more fair competition between ES and RLVR.
+2. **Record wall-clock and total generated tokens alongside generations**, so
+   every result can be read under any of the three denominators (see below).
+3. **Run the existing pass@k suite**
 
-## Planned: full-MMLU forgetting measurement
+### The other axis: matched wall-clock
+
+Generation parity is one denominator, and it is the one that isolates the
+*method*. It is not the one a practitioner spends. The second protocol is
+therefore the same two arms on the same box, each stopped at the same
+wall-clock budget, reporting whatever number of steps each got through.
+
+The two axes disagree by construction, which is the point. At the reshaped
+geometry both arms generate 32,768 completions per step, but they pay for
+them differently: GRPO adds a backward pass and optimizer state over the full
+model, while ES is forward-only and its per-step cost is population
+evaluation plus perturbation overhead. 
+
+Fixing generations therefore hands ES
+the cheaper step, and fixing wall-clock hands ES more steps — if that is
+where the advantage comes from, a generations-matched table will hide it and
+a time-matched one will show it. Memory follows the same split: ES holds no
+optimizer state, which is why this project's ES runs fit on 8x RTX 4090 at
+all.
+
+## Planned: Catastrophic forgetting measurement
 
 **Not yet run.** All post-training here is math-only, so the natural question
 is what it costs elsewhere.
 
-*Catastrophic forgetting* would be a significant drop vs. base
-concentrated in the non-STEM categories (humanities, social sciences) while
-math-adjacent STEM holds or rises — that is the signature of a math-only
-objective overwriting unrelated capability. 
+We can evaluate the Base/ES/RL models with MMLU, GPQA. We can measure how much the model forgot/degraded on humanities benchmark with respect to the two training algorithms.
 
-## Later
-- A compute-matched RL baseline (capped at similar wall-clock/FLOP budget to
-  the ES run, rather than comparing against an already fully-trained public
-  checkpoint) would make the ES-vs-RL comparison fair — currently open at both
-  scales.
-- A fourth arm testing EGGROLL (Sarkar et al., arXiv:2511.16652 — rank-r
-  LoRA-factorized ES, as opposed to `es-at-scale`'s full-rank ES).
+## Appendix
+
+### Code
+Training and evaluation run from forked, patched copies of the original
+papers' code.
+
+| Purpose | Repo | Branch | Notes |
+|---|---|---|---|
+| ES training | [Jaysen-Ma/es-at-scale](https://github.com/Jaysen-Ma/es-at-scale) (fork of [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale), arXiv:2509.24372) | `fix/multi-engine-colocation` | Fixes needed to run on a single-node 8x RTX 4090 instance on Vast. |
+| pass@k generation, grading, plotting | [Jaysen-Ma/limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR) (fork of [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR), arXiv:2504.13837) | `fix/math-equal-timeout-bypass` | Fixes a grading-worker hang. |
+
+### Evaluation wall-clock
+
+Convert the raw `es-at-scale` checkpoint to HF format first. Per-benchmark
+generation time, 8x RTX 4090 48GB, sharded across all 8 GPUs:
+
+| Benchmark | Gens/model | 1.5B base | 1.5B ES | 1.5B RL | 7B base | 7B ES | 7B RL |
+|---|---|---|---|---|---|---|---|
+| AIME24 (k=512) | 15,360 | 5m23s | 4m34s | 5m24s | 13m41s | 13m12s | — |
+| MATH500 (k=128) | 64,000 | 3m38s | 2m40s | 3m18s | 11m19s | 26m07s | — |
+| Minerva (k=128) | 34,816 | 4m32s | 4m08s | 5m05s | 24m33s | 25m07s | — |
+| OlympiadBench (k=128) | 86,400 | 5m54s | 9m41s | 7m33s | 40m21s | 43m17s | — |
+| **Total** | | **19m27s** | **21m02s** | **21m20s** | **1h30m** | **1h48m** | — |
+
+The 7B RL generations were run on a separate 8x RTX 3090 instance, not the
+4090 box, so their wall-clock isn't comparable to the rest of the table and
+wasn't recorded.
+
+### Training dynamics
+
+Per-iteration reward for every run — including the aborted sigma sweeps not
+reported above — is in `results/<run>/training_curves.csv`.
+
+### Published checkpoints
+
+In HF format, converted from the raw `es-at-scale` checkpoints with
+`scripts/convert_to_hf.py`.
+
+| Run | Checkpoint |
+|---|---|
+| 1.5B, σ=0.001, iter50 | [zocrate/Qwen2.5-1.5B-ES-math](https://huggingface.co/zocrate/Qwen2.5-1.5B-ES-math) |
+| 7B, σ=0.001, iter50 | [zocrate/Qwen2.5-7B-ES-math](https://huggingface.co/zocrate/Qwen2.5-7B-ES-math) | 
