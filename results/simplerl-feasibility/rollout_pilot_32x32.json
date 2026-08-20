@@ -1,0 +1,20 @@
+{
+  "model": "/home/zotar/models/Qwen2.5-1.5B",
+  "prompts": 32,
+  "n": 32,
+  "sequences": 1024,
+  "max_tokens": 3072,
+  "temperature": 1.0,
+  "engine_init_s": 55.4,
+  "generate_s": 359.6,
+  "output_tokens": 1195909,
+  "output_tok_per_s": 3325.4,
+  "seq_per_s": 2.85,
+  "resp_len_mean": 1167.9,
+  "resp_len_median": 658.5,
+  "resp_len_p90": 3072,
+  "resp_len_max": 3072,
+  "frac_hit_cap": 0.2139,
+  "prompt_len_mean": 80.1,
+  "total_tokens_incl_prompt": 1277957
+}

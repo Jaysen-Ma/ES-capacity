@@ -1,0 +1,48 @@
+{
+  "model": "/home/zotar/models/Qwen2.5-1.5B",
+  "mem_fraction": 0.5,
+  "seqlen": 1280,
+  "attn_implementation": "sdpa",
+  "grad_checkpointing": true,
+  "params_b": 1.544,
+  "passes": [
+    {
+      "micro_bs": 2,
+      "tokens_per_micro_batch": 2560,
+      "logprob_fwd_s": 0.198,
+      "logprob_tok_per_s": 12905,
+      "logprob_peak_gib": 6.5,
+      "train_step_s": 1.035,
+      "train_tok_per_s": 2472,
+      "train_peak_gib": 15.1
+    },
+    {
+      "micro_bs": 8,
+      "tokens_per_micro_batch": 10240,
+      "logprob_fwd_s": 0.825,
+      "logprob_tok_per_s": 12419,
+      "logprob_peak_gib": 15.9,
+      "train_step_s": 3.274,
+      "train_tok_per_s": 3128,
+      "train_peak_gib": 29.9
+    },
+    {
+      "micro_bs": 16,
+      "tokens_per_micro_batch": 20480,
+      "logprob_fwd_s": 1.661,
+      "logprob_tok_per_s": 12330,
+      "logprob_peak_gib": 18.8,
+      "train_step_s": 6.346,
+      "train_tok_per_s": 3227,
+      "train_peak_gib": 51.1
+    },
+    {
+      "micro_bs": 32,
+      "tokens_per_micro_batch": 40960,
+      "logprob_fwd_s": 3.539,
+      "logprob_tok_per_s": 11575,
+      "logprob_peak_gib": 24.6,
+      "train_step_s": "OOM"
+    }
+  ]
+}

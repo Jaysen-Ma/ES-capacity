@@ -1,0 +1,31 @@
+{
+  "config": {
+    "steps": 50,
+    "prompts_per_step": 256,
+    "rollouts_per_prompt": 32,
+    "sequences_per_step": 8192,
+    "total_generations": 409600,
+    "max_tokens": 3072,
+    "measured_mean_response_len": 1167.9,
+    "measured_mean_prompt_len": 80.1,
+    "tokens_per_step": 10223616,
+    "update_micro_bs": 16
+  },
+  "rates": {
+    "generate_tok_per_s": 3325.4,
+    "logprob_tok_per_s": 12330,
+    "train_tok_per_s": 3227
+  },
+  "per_step_s": {
+    "generate": 2877,
+    "old_log_prob": 829,
+    "ref_log_prob": 829,
+    "update": 3168,
+    "overhead": 90.0,
+    "total": 7794
+  },
+  "per_step": "2h09m53s",
+  "total": "108h14m37s",
+  "total_hours": 108.2,
+  "total_days": 4.51
+}
