@@ -42,7 +42,6 @@ scripts/convert_to_hf.py
 
 # Docker image is untested and doesn't build; kept local only, not
 # distributed or maintained as part of the repo.
-docker/
 
 # Editors / OS
 .idea/
