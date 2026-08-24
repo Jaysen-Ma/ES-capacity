@@ -10,7 +10,8 @@ project tests whether ES-based fine-tuning avoids that narrowing, on the same ta
 Two base models — `Qwen2.5-1.5B` and `Qwen2.5-7B`, each compared against two post-trained arms on the same task, reward and data:
 
 - **ES** — full-parameter, backprop-free evolution strategies, σ=0.001,
-  population 32, 50 iterations, batch 256, 2,048-token cap. Method and
+  population 32, 50 iterations (**51 parameter updates** — see the note under
+  [ES vs. RL](#es-vs-rl)), batch 256, 2,048-token cap. Method and
   training code are Qiu et al.'s
   ([arXiv:2509.24372](https://arxiv.org/abs/2509.24372)). The hyperparameters
   above are **identical at both scales**.
@@ -50,16 +51,35 @@ carries weight.
 axis.** Both arms train on the same **8,523 problems** (level3to5), but they
 spend their budget on different things:
 
-| | Prompts/step | Steps | ×per prompt | Prompt-exposures | **Epochs** | Generations | Training Token cap |
-|---|---|---|---|---|---|---|---|
-| **ES** (arxiv2509.24372) | 256 | 50 | 32 population | 12,800 | **1.50** | 409,600 | 2,048 |
-| **RL** (arxiv2503.18892) | 1,024 | ~100 | 8 rollouts | 102,400 | **12.01** | 819,200 | 8,192 |
-| **ratio (RL / ES)** | 4x | 2x | 0.25x | **8.00x** | **8.00x** | **2.00x** | **4x** |
+| | Prompts/step | Steps | **Updates** | ×per prompt | Prompt-exposures | **Epochs** | Generations | Training Token cap |
+|---|---|---|---|---|---|---|---|---|
+| **ES** (arxiv2509.24372) | 256 | 51 | **51** | 32 population | 12,875 | **1.5106** | 412,000 | 2,048 |
+| **RL** (arxiv2503.18892) | 1,024 | ~100 | **~400** | 8 rollouts | 102,400 | **12.01** | 819,200 | 8,192 |
+| **ratio (RL / ES)** | 4x | 1.96x | **7.84x** | 0.25x | **7.95x** | **7.95x** | **1.99x** | **4x** |
 
-The two ratios that matter come apart: RL sees **8x more data** but runs only
-**2x more generations**. That is the whole structural difference between the
+<sub>**Why 51 and not 50.** `--n-iterations 50` performs **51** parameter
+updates: `fit()` increments the counter *after* `train_step()` and exits on
+`iteration > num_iterations`, so it runs iteration 0…50
+([`es_trainer.py:659-662`](https://github.com/VsonicV/es-at-scale)). Both
+`training_curves.csv` files in this repo have 51 rows. Separately, the
+dataloader uses `drop_last=False`, so with 8,523 problems and batch 256 the
+34th step sees only **75** prompts. Exposures are therefore 33×256 + 75 +
+17×256 = **12,875**, not 12,800 — giving 1.5106 epochs and 412,000
+generations. Earlier revisions of this table reported 50 / 12,800 / 1.50 /
+409,600.</sub>
+
+<sub>**Why RL's updates ≠ its steps.** SimpleRL-Zoo runs
+`ppo_mini_batch_size=256` against `train_batch_size=1024`
+([`train_grpo_math_tune_ray.sh:23,27`](https://github.com/hkust-nlp/simpleRL-reason)),
+so each step performs 1024/256 = **4** gradient updates. ES performs exactly
+one update per iteration — `update_weights_from_seeds` is called once, after
+all 32 members are scored (`es_trainer.py:461-471`).</sub>
+
+The two ratios that matter come apart: RL sees **~8x more data** but runs only
+**~2x more generations**. That is the whole structural difference between the
 methods. RL spends its generation budget on **data breadth**, ES spends its
-budget on **parameter breadth**. 
+budget on **parameter breadth**. On the third axis — **parameter updates** —
+RL gets ~7.8x more, which neither of the other two columns shows.
 
 **On "rollouts" vs "population"**: 
 
@@ -93,7 +113,7 @@ hyperparameters — **only the base model changes** (1.5B → 7B).
 | sigma | 0.001 | 0.001 |
 | alpha (lr) | auto (`sigma/2` = 0.0005) | auto (`sigma/2` = 0.0005) |
 | Population size | 32 | 32 |
-| Iterations | 50 | 50 |
+| Iterations | 50 (`--n-iterations`) → **51 updates** | 50 (`--n-iterations`) → **51 updates** |
 | Train dataset | `math_lvl3to5_8k` — the same 8,523 problems, in the same order, as SimpleRL-Zoo's `simplelr_qwen_level3to5` split | same |
 | Evaluation dataset | `datasets/evaluation_suite/math` — omit it and it defaults to the `countdown` task's, which has no `problem` field and crashes the trainer | same |
 | Batch size / mini-batch size | 256 / 256 | 256 / 256 |
