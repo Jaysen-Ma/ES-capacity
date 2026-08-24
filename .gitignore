@@ -44,6 +44,11 @@ scripts/convert_to_hf.py
 # distributed or maintained as part of the repo.
 docker/
 
+# Long-form write-ups kept local. GPQA's full method, per-seed tables and
+# answer-position diagnostics live in docs/gpqa.md; the README carries the
+# summary and the conclusion, which is all a reader of this repo needs.
+docs/
+
 # Editors / OS
 .idea/
 .vscode/
@@ -71,21 +76,25 @@ wandb/
 # by scripts/. The rule throughout: derived results in git, raw dumps out.
 
 # Raw per-shard pass@k generations (gigabytes; every completion in full).
-# Regenerate via scripts/run_eval.sh, one arm at a time. analyze_passk.py
-# reads directly from these — nothing reduces them for git, so they stay
-# local only, and a torn-down eval box takes its per-question record with it.
+# Regenerate via scripts/passk/run_eval.sh, one arm at a time.
+# scripts/passk/analyze.py reads directly from these — nothing reduces them for
+# git, so they stay local only, and a torn-down eval box takes its per-question
+# record with it.
 results/*/base/
 results/*/trained/
 results/*/rl/
 results/*/*.log
 results/*_run.log
 
-# Raw lm-eval-harness tree for the GPQA seed sweep (6 arms x 10 permutations).
-# Regenerate with scripts/run_gpqa_sweep.py; reduced to the committed CSVs in
-# results/gpqa/ by scripts/analyze_gpqa.py. Stays out of git because the
-# samples_*.jsonl embed the verbatim benchmark text — a presigned S3 URL in the
-# GPQA corpus once tripped GitHub secret scanning.
+# GPQA seed sweep (6 arms x 10 permutations), raw tree and reduced CSVs alike.
+# The raw lm_eval tree stays out because its samples_*.jsonl embed the verbatim
+# benchmark text — a presigned S3 URL in the GPQA corpus once tripped GitHub
+# secret scanning. The reduced CSVs stay out because GPQA is a side probe here:
+# the README carries its one table and its conclusion, and nothing else in the
+# repo depends on the artifacts. Regenerate both with scripts/gpqa/run_sweep.py
+# then scripts/gpqa/analyze.py.
 results/gpqa_results/
+results/gpqa/
 
 # Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
 # git-tracked; every other run stays local only.

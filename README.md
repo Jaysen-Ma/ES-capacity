@@ -177,42 +177,6 @@ settled against a fully-trained public checkpoint that saw 8x the data, 2x the
 generations and 4x the token cap — an ES arm we control has to be compared
 against an RL arm we also control. That is the next proposed experiment.
 
-## Out-of-domain check: GPQA-diamond
-
-All post-training here is math-only, so the obvious question is what it costs
-elsewhere. GPQA-diamond zero-shot is the first probe: 198 graduate-level
-science questions, four choices each, scored by log-likelihood over the four
-options — **not** pass@k, a different measurement from everything above. All
-six arms, each scored under 10 different shuffles of the answer choices, with
-every arm seeing the identical shuffle within a seed.
-
-| Arm | mean acc over 10 permutations | sd | min | max |
-|---|---|---|---|---|
-| 1.5B-base | 23.79% | 2.23 | 20.71% | 28.79% |
-| 1.5B-ES | 25.05% | 3.12 | 20.20% | 29.29% |
-| 1.5B-RL | 23.69% | 2.81 | 18.18% | 28.28% |
-| 7B-base | 25.45% | 2.53 | 21.72% | 27.78% |
-| 7B-ES | 25.00% | 1.91 | 22.22% | 28.28% |
-| 7B-RL | 26.01% | 2.61 | 21.72% | 28.79% |
-
-**Both base models answer GPQA-diamond no better than random guessing, so this
-benchmark cannot answer the question.** Chance on four choices is 25%.
-Qwen2.5-1.5B base sits at 23.8% and Qwen2.5-7B base at 25.5%, and reshuffling
-the answer choices alone moves a single arm by up to 8 points — more than any
-gap between arms. There is no headroom to lose: a model cannot be shown to have
-forgotten science it never demonstrated in the first place. Every ES-vs-base
-and RL-vs-base comparison comes out null, and at chance level that is the only
-result available, whatever the training did to the models.
-
-So the finding is about the probe rather than about ES and RL. Measuring what
-math-only post-training costs elsewhere needs a benchmark these two bases
-already score above chance on — see
-[the MMLU protocol](#planned-catastrophic-forgetting-measurement-mmlu) below.
-
-Method, the full pairwise comparison table, the per-seed breakdown and the
-reproduce commands are in [docs/gpqa.md](docs/gpqa.md). Derived CSVs are
-committed in `results/gpqa/`.
-
 ## Planned: "matched-budget" ES vs. RL
 
 **Not yet run.** The single biggest weakness in this repo is that every
@@ -259,20 +223,30 @@ a time-matched one will show it. Memory follows the same split: ES holds no
 optimizer state, which is why this project's ES runs fit on 8x RTX 4090 at
 all.
 
-## Planned: Catastrophic forgetting measurement (MMLU)
+## Out-of-domain check: GPQA-diamond
 
-**Not yet run.** GPQA-diamond (above) turned out to be the wrong instrument:
-both base models answer it at chance, so it has no headroom in which to show a
-loss. The open measurement is full MMLU — 57 subjects, scored per domain, and
-a benchmark Qwen2.5 base models score well above chance on. That is what makes
-"what did math-only post-training cost the humanities?" answerable at all, and
-57 subjects give it enough questions per domain to survive the answer-order
-sensitivity documented in [docs/gpqa.md](docs/gpqa.md).
+All post-training here is math-only, so the next question is does ES or RL cause model degrading and catastrophic forgetting elsewhere. GPQA-diamond zero-shot is the first probe: 198 graduate-level
+science questions, four choices each, scored by log-likelihood over the four
+options. All
+six arms, each scored under 10 different shuffles of the answer choices, with
+every arm seeing the identical shuffle within a seed.
 
-Run it through the same seed sweep: `scripts/run_gpqa_sweep.py` generalises to
-any `lm_eval` multiple-choice task, and the answer-position check in
-`scripts/analyze_gpqa.py` is the diagnostic that made the GPQA result
-interpretable.
+| Arm | mean acc over 10 permutations | sd | min | max |
+|---|---|---|---|---|
+| 1.5B-base | 23.79% | 2.23 | 20.71% | 28.79% |
+| 1.5B-ES | 25.05% | 3.12 | 20.20% | 29.29% |
+| 1.5B-RL | 23.69% | 2.81 | 18.18% | 28.28% |
+| 7B-base | 25.45% | 2.53 | 21.72% | 27.78% |
+| 7B-ES | 25.00% | 1.91 | 22.22% | 28.28% |
+| 7B-RL | 26.01% | 2.61 | 21.72% | 28.79% |
+
+**Both base models answer GPQA-diamond no better than random guessing, so this
+benchmark cannot answer the question.** There is no headroom to lose. 
+
+Measuring what
+math-only post-training costs elsewhere needs a benchmark these two bases
+already score above chance on. The proposed measurement is full MMLU — 57 subjects, scored per domain. That is what makes
+"what did math-only post-training cost the humanities?" answerable at all.
 
 ## Appendix
 

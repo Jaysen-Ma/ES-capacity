@@ -1,6 +1,6 @@
 """
 Given a run_tag and a set of arm labels already evaluated by
-scripts/run_eval.sh (which writes to results/<run_tag>/<label>/<benchmark>/),
+scripts/passk/run_eval.sh (which writes to results/<run_tag>/<label>/<benchmark>/),
 compute for all 4 benchmarks in one invocation:
   1. pass@k curves at k = powers of 2 up to n_sampling (1, 2, 4, ..., n) for
      every arm — same k_values convention and same unbiased estimator as
@@ -36,7 +36,7 @@ import os
 
 import numpy as np
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 BENCHMARKS = [
     ("aime24", "AIME24"),

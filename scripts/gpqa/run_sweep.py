@@ -29,12 +29,12 @@ choices is seconds of work, so startup dominates and reloading per seed would
 multiply the cost of the sweep by ~10 for nothing).
 
 Usage:
-    python scripts/run_gpqa_sweep.py                       # all 6 arms, seeds 0-9
-    python scripts/run_gpqa_sweep.py --arms 1.5B-base 1.5B-ES
-    python scripts/run_gpqa_sweep.py --seeds 0 1 2 --out results/gpqa_results
+    python scripts/gpqa/run_sweep.py                       # all 6 arms, seeds 0-9
+    python scripts/gpqa/run_sweep.py --arms 1.5B-base 1.5B-ES
+    python scripts/gpqa/run_sweep.py --seeds 0 1 2 --out results/gpqa_results
 
 Reduce the resulting tree with:
-    python scripts/analyze_gpqa.py --sweep-root results/gpqa_results \
+    python scripts/gpqa/analyze.py --sweep-root results/gpqa_results \
         --out results/gpqa --pair 1.5B-ES:1.5B-base ...
 """
 

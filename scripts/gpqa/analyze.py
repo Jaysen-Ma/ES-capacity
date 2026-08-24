@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Reduce an `lm_eval` GPQA-diamond seed sweep to the derived artifacts we commit.
+"""Reduce an `lm_eval` GPQA-diamond seed sweep to a handful of derived CSVs.
 
-The raw sweep tree is gitignored: its `samples_*.jsonl` are ~2.6 MB per arm per
-seed and embed the verbatim GPQA questions, including presigned S3 URLs that trip
-GitHub secret scanning. Everything README.md and docs/gpqa.md claim rests on what is derived here:
+Nothing under results/gpqa*/ is in git — the raw sweep tree because its
+`samples_*.jsonl` are ~2.6 MB per arm per seed and embed the verbatim GPQA
+questions, including presigned S3 URLs that trip GitHub secret scanning, and
+these CSVs because re-running the sweep regenerates them. Everything the
+README's GPQA table and docs/gpqa.md claim rests on what is derived here:
 
   <out>/scores.csv         (seed, arm) accuracy, n correct, stderr, model path
   <out>/scores_summary.csv per-arm mean/std/min/max accuracy across seeds
@@ -33,7 +35,7 @@ TWO INVARIANTS, both enforced below (--check runs only these):
      This fails silently and looks perfect; it is the whole reason for the check.
 
 Usage:
-    python scripts/analyze_gpqa.py --sweep-root results/gpqa_results \
+    python scripts/gpqa/analyze.py --sweep-root results/gpqa_results \
         --out results/gpqa \
         --pair 1.5B-ES:1.5B-base --pair 1.5B-RL:1.5B-base \
         --pair 7B-ES:7B-base   --pair 7B-RL:7B-base

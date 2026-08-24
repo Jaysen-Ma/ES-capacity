@@ -38,7 +38,7 @@ RUN_TAG=${3:-run1}
 N_SAMPLING_OVERRIDE=${4:-}
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 if [ -f "$REPO_ROOT/config.sh" ]; then
     source "$REPO_ROOT/config.sh"

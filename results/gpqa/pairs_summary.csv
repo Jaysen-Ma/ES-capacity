@@ -1,7 +1,0 @@
-arm,baseline,n_seeds,delta_mean_pts,delta_std_pts,delta_min_pts,delta_max_pts,seeds_arm_better,seeds_tied,n_questions_differing,p_wilcoxon_per_question
-1.5B-ES,1.5B-base,10,1.26,3.2,-3.54,7.07,7,0,117,0.2479
-1.5B-RL,1.5B-base,10,-0.1,1.86,-2.53,2.53,4,2,52,0.7892
-1.5B-ES,1.5B-RL,10,1.36,2.01,-1.01,6.06,7,1,113,0.2346
-7B-ES,7B-base,10,-0.45,2.34,-4.04,3.03,5,0,102,0.7338
-7B-RL,7B-base,10,0.56,0.73,0.0,2.02,5,5,39,0.147
-7B-ES,7B-RL,10,-1.01,2.56,-5.56,3.03,4,0,100,0.2801

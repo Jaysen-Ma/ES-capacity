@@ -7,7 +7,7 @@ generated instead. Paste the output, or diff it against the committed markdown
 to check the tables still match the artifacts.
 
 Usage:
-    python scripts/gpqa_tables.py [--dir results/gpqa]
+    python scripts/gpqa/tables.py [--dir results/gpqa]
 """
 
 from __future__ import annotations
