@@ -80,14 +80,12 @@ results/*/rl/
 results/*/*.log
 results/*_run.log
 
-# Raw lm-eval-harness tree for the GPQA sweep. The sweep script and its
-# reducer have been removed pending a redo (see the main README's GPQA
-# section), and its samples_*.jsonl embed the verbatim benchmark text — a
-# presigned S3 URL in the GPQA corpus once tripped GitHub secret scanning.
+# Raw lm-eval-harness tree for the GPQA seed sweep (6 arms x 10 permutations).
+# Regenerate with scripts/run_gpqa_sweep.py; reduced to the committed CSVs in
+# results/gpqa/ by scripts/analyze_gpqa.py. Stays out of git because the
+# samples_*.jsonl embed the verbatim benchmark text — a presigned S3 URL in the
+# GPQA corpus once tripped GitHub secret scanning.
 results/gpqa_results/
-
-# Reduced GPQA CSVs, likewise untracked pending the redo above.
-results/gpqa/
 
 # Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
 # git-tracked; every other run stays local only.
