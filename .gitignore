@@ -96,6 +96,12 @@ results/*_run.log
 results/gpqa_results/
 results/gpqa/
 
+# Weight-movement analysis: histograms, summary CSVs and figures for how far
+# ES and RL post-training moved the parameters. Exploratory and local-only —
+# nothing tracked depends on it, and scripts/weights/compare.py regenerates the
+# lot from the checkpoints in ~30 min.
+results/weights/
+
 # Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
 # git-tracked; every other run stays local only.
 results/7b-sigma001-iter100/
