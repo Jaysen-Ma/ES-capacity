@@ -9,7 +9,7 @@ One image that runs all four repos in this project: ES training (`es-at-scale`),
 | path | contents |
 |---|---|
 | `/venv/train` | torch 2.8, vllm 0.11.0, transformers 4.57.6, verl v0.7.1, flash-attn 2.8.3 — serves **both** ES and GRPO training |
-| `/venv/eval` | torch 2.4, vllm ≤0.6.3, transformers <4.48 — the `math_eval` pass@k harness |
+| `/venv/eval` | torch 2.4, vllm 0.6.3 (pinned `==`, not `<=`), transformers <4.48, setuptools -- the `math_eval` pass@k harness |
 | `/opt/verl` | verl v0.7.1, installed editable into `/venv/train` |
 | `/opt/es-capacity/on_start.sh` | clones/pulls the four forks to `$WORKSPACE/repos` at boot |
 
@@ -70,9 +70,12 @@ rather than the algorithms. See `docs/matched-experiment.md`.
 under that stack. Upgrading it would break comparability with results already committed.
 
 **flash-attn ABI.** The wheel's `cxx11abi` tag must match torch's `_GLIBCXX_USE_CXX11_ABI`.
-torch 2.8 PyPI wheels are built with it off, hence `FA_ABI=FALSE`. The Dockerfile asserts this
-at build time rather than assuming it, so an upstream change fails loudly instead of producing
-an image that dies at `import flash_attn`.
+The rule is **version-based, not index-based**: every torch >=2.7 Linux wheel sets the flag on
+after PyTorch's manylinux_2_28 migration, and the default PyPI wheel for 2.8.0 is itself the
+cu128 build. `vllm==0.11.0` pulls torch 2.8.0+cu128 from stock PyPI -- no `index-url` is set
+anywhere in this repo -- hence `FA_ABI=TRUE`. There is no ABI=0 torch 2.8 wheel to reason from.
+The Dockerfile asserts at build time rather than assuming, so a mismatch fails loudly instead
+of producing an image that dies at `import flash_attn`.
 
 ## Build-time knobs
 
@@ -80,7 +83,7 @@ an image that dies at `import flash_attn`.
 docker build -f docker/Dockerfile \
   --build-arg VERL_REF=v0.7.1 \
   --build-arg FA_VERSION=2.8.3.post1 \
-  --build-arg FA_ABI=FALSE \
+  --build-arg FA_ABI=TRUE \
   --build-arg BASE_IMAGE=vastai/base-image:cuda-12.8.1-cudnn-devel-ubuntu24.04-py312-2026-08-21 \
   -t ghcr.io/jaysen-ma/es-capacity:latest .
 ```
@@ -100,3 +103,23 @@ first:
 
 That yields ~39 GB — enough, but not comfortable. A larger runner, or building on a machine you
 control, is the safer path.
+
+## Fixed after the first end-to-end build
+
+The four above were found by inspection. Actually building the image surfaced three more, none
+of them visible without running it:
+
+5. **`FA_ABI` defaulted to `FALSE`.** Every torch >=2.7 Linux wheel sets the cxx11 ABI flag on,
+   so the assert tripped and the build stopped at step 4/9. Now `TRUE`. See *flash-attn ABI*.
+
+6. **`/venv/eval` had no `setuptools`.** `uv venv` does not seed it and vllm imports it at
+   runtime, so the venv built clean and then died at `import vllm` -- at eval time, not build
+   time.
+
+7. **`vllm<=0.6.3` is not a freeze.** With no lower bound the resolver walked down to
+   vllm 0.5.0.post1 / torch 2.3.0. Now pinned `==0.6.3`.
+
+Separately: `.gitattributes` forces LF for `*.sh`, and the image strips CR from `on_start.sh` at
+build time. A Windows checkout (`core.autocrlf=true`, the Git-for-Windows default) otherwise
+bakes in a CRLF boot hook that Linux rejects with `bad interpreter: bash^M` -- the image builds
+green and the instance then boots with no repos cloned.

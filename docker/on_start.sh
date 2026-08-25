@@ -27,10 +27,15 @@ sync_repo() {
     fi
 }
 
-sync_repo https://github.com/Jaysen-Ma/ES-capacity.git      "${REPOS}/ES-capacity"      main
+# ES_CAPACITY_REF lets an instance test a branch without a rebuild or a merge to
+# main. It stays a NAMED ref on purpose: a run is only reconstructable if you can
+# say which commit produced it, so "whatever is newest" is not an option here.
+# Note the clone below is not --single-branch, so every branch's objects arrive
+# regardless; this only selects what gets checked out.
+sync_repo https://github.com/Jaysen-Ma/ES-capacity.git      "${REPOS}/ES-capacity"      "${ES_CAPACITY_REF:-main}"
 sync_repo https://github.com/Jaysen-Ma/es-at-scale.git      "${REPOS}/es-at-scale"      fix/multi-engine-colocation
 sync_repo https://github.com/Jaysen-Ma/limit-of-RLVR.git    "${REPOS}/limit-of-RLVR"    fix/math-equal-timeout-bypass
-sync_repo https://github.com/Jaysen-Ma/simpleRL-reason.git  "${REPOS}/simpleRL-reason"  main
+sync_repo https://github.com/Jaysen-Ma/simpleRL-reason.git  "${REPOS}/simpleRL-reason"  v1
 
 # The ES grader is imported by verl's custom reward function at training time.
 grep -q 'ES_AT_SCALE_PATH' "${WORKSPACE}/.env" 2>/dev/null || {
@@ -49,4 +54,5 @@ cat <<EOF
   training + ES : source /venv/train/bin/activate
   pass@k eval   : source /venv/eval/bin/activate
   repos         : ${REPOS}
+  ES-capacity   : ${ES_CAPACITY_REF:-main}
 EOF

@@ -11,8 +11,8 @@
 # against an ES arm that has no analogue for any of those knobs.
 set -euo pipefail
 
-VENV=${VENV:-/workspace/venvs/verl}
-REPO=${REPO:-/workspace/es-capacity}
+VENV=${VENV:-/venv/train}
+REPO=${REPO:-/workspace/repos/ES-capacity}
 DATA=${DATA:-/workspace/data/lvl3to5_es_template/train.parquet}
 CKPT=${CKPT:-/workspace/ckpt/grpo-1.5b-matched}
 MODEL=${MODEL:-Qwen/Qwen2.5-1.5B}

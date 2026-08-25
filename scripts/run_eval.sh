@@ -23,7 +23,7 @@
 # math/examples/math_eval/ (this repo doesn't vendor it, and its path isn't
 # assumed — copy config.example.sh to config.sh and set it there, or export
 # it yourself; on a box following docker/on_start.sh's layout it defaults to
-# $WORKSPACE/limit-of-RLVR/math/examples/math_eval).
+# $WORKSPACE/repos/limit-of-RLVR/math/examples/math_eval).
 #
 # <model_dir_or_config_key>: each model gets its own explicit path — no
 # shared "models root" is assumed. If the argument names a variable defined
@@ -44,7 +44,7 @@ if [ -f "$REPO_ROOT/config.sh" ]; then
     source "$REPO_ROOT/config.sh"
 fi
 if [ -z "${MATH_EVAL_DIR:-}" ] && [ -n "${WORKSPACE:-}" ]; then
-    MATH_EVAL_DIR="$WORKSPACE/limit-of-RLVR/math/examples/math_eval"
+    MATH_EVAL_DIR="$WORKSPACE/repos/limit-of-RLVR/math/examples/math_eval"
 fi
 if [ -z "${MATH_EVAL_DIR:-}" ]; then
     echo "ERROR: MATH_EVAL_DIR is not set." >&2

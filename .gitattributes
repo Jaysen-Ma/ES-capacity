@@ -1,0 +1,4 @@
+# Keep shell scripts LF on every platform: a CRLF on_start.sh is COPYed into the
+# image and Linux rejects it with `bad interpreter: bash^M`.
+*.sh text eol=lf
+Dockerfile text eol=lf

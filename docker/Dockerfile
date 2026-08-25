@@ -26,9 +26,15 @@
 # across four archs on a 7GB runner. Dao-AILab ships prebuilt wheels; we use
 # one. No nvcc runs during this build at all.
 #
-# ABI NOTE: the wheel's cxx11abi tag must match torch's. torch 2.8 PyPI wheels
-# are built with _GLIBCXX_USE_CXX11_ABI=0 -> the abiFALSE wheel. The build
-# asserts this rather than assuming it.
+# ABI NOTE: the wheel's cxx11abi tag must match torch's. The rule is VERSION-
+# based, not index-based: every torch >= 2.7 linux wheel is built with
+# _GLIBCXX_USE_CXX11_ABI=1 after PyTorch's manylinux_2_28 migration, and the
+# default PyPI wheel for 2.8.0 is itself the cu128 build. vllm 0.11.0 pulls
+# torch 2.8.0+cu128 from stock PyPI here -- no index-url is set anywhere in
+# this repo -- so abiTRUE is correct. There is no ABI=0 torch 2.8 wheel to
+# reason from; an earlier revision assumed one and this assert caught it.
+# Assert, don't assume: a flip fails here, not at `import flash_attn` on a
+# rented GPU box.
 # ---------------------------------------------------------------------------
 
 # Tag verified to exist on Docker Hub. Note ubuntu24.04 (not 22.04) and the
@@ -81,7 +87,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # ============================================================================
 ARG VERL_REF=v0.7.1
 ARG FA_VERSION=2.8.3.post1
-ARG FA_ABI=FALSE
+ARG FA_ABI=TRUE
 
 RUN uv venv /venv/train --python 3.12 \
  && . /venv/train/bin/activate \
@@ -113,14 +119,23 @@ RUN . /venv/train/bin/activate \
 # --prerelease=allow is REQUIRED: hydra-core 1.4.0.dev1 and omegaconf 2.4.0.dev3
 # are dev releases and uv refuses them by default. This is one of the reasons
 # the previous Dockerfile could not build.
+#
+# vllm is pinned ==0.6.3, NOT <=0.6.3. An upper bound with no floor is not a
+# freeze: the resolver walked it down to vllm 0.5.0.post1 / torch 2.3.0, and
+# would drift again on a different build date -- silently breaking the very
+# comparability this venv exists to preserve.
+#
+# setuptools is listed explicitly because `uv venv` does not seed it and vllm
+# imports it at runtime. Without it the venv builds clean and then dies at
+# `import vllm` -- i.e. at eval time, not build time.
 # ============================================================================
 RUN uv venv /venv/eval --python 3.10 \
  && . /venv/eval/bin/activate \
  && uv pip install --prerelease=allow \
     accelerate codetiming datasets dill \
     "hydra-core==1.4.0.dev1" "omegaconf==2.4.0.dev3" \
-    numpy pybind11 "ray[default]==2.10.0" tensordict \
-    "transformers<4.48" "vllm<=0.6.3" peft liger-kernel word2number \
+    numpy pybind11 "ray[default]==2.10.0" setuptools tensordict \
+    "transformers<4.48" "vllm==0.6.3" peft liger-kernel word2number \
     "math-verify[antlr4_11_0]==0.6.0"
 
 # Repos are NOT baked in — ES-capacity, es-at-scale, limit-of-RLVR and
@@ -128,7 +143,12 @@ RUN uv venv /venv/eval --python 3.10 \
 # onto the persistent $WORKSPACE volume at every boot, so code is always
 # current without rebuilding a 30GB image.
 COPY docker/on_start.sh /opt/es-capacity/on_start.sh
-RUN chmod +x /opt/es-capacity/on_start.sh
+# Strip CR before chmod. A Windows checkout (core.autocrlf=true) yields a CRLF
+# on_start.sh; Linux then rejects it with `bad interpreter: bash^M` and the
+# instance boots with no repos cloned. .gitattributes fixes new clones, but the
+# image must be correct regardless of the builder's git config.
+RUN sed -i 's/\r//g' /opt/es-capacity/on_start.sh \
+ && chmod +x /opt/es-capacity/on_start.sh
 
 RUN rm -rf /var/lib/apt/lists/* /root/.cache /tmp/*
 
