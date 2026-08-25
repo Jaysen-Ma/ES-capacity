@@ -9,6 +9,11 @@
 # deviations from SimpleRL-Zoo's own recipe (KL off, entropy off, lr scheduler constant,
 # seq-mean-token-mean, no stop_token_ids) exist because this run is a controlled comparison
 # against an ES arm that has no analogue for any of those knobs.
+#
+# data.val_files: verl always constructs a validation dataset, even with
+# val_before_train=False and test_freq=-1. Left unset it falls back to
+# ~/data/rlhf/gsm8k/test.parquet and the run dies at startup, so it is pointed at
+# the train parquet below -- it is never actually read.
 set -euo pipefail
 
 VENV=${VENV:-/venv/train}
@@ -47,6 +52,7 @@ python3 -m verl.trainer.main_ppo \
   algorithm.norm_adv_by_std_in_grpo=True \
   \
   data.train_files="${DATA}" \
+  data.val_files="${DATA}" \
   data.train_batch_size=256 \
   data.max_prompt_length=2048 \
   data.max_response_length=2048 \
@@ -93,7 +99,7 @@ python3 -m verl.trainer.main_ppo \
   trainer.n_gpus_per_node=8 \
   trainer.nnodes=1 \
   trainer.save_freq=${SAVE_FREQ} \
-  trainer.max_ckpt_to_keep=2 \
+  trainer.max_actor_ckpt_to_keep=2 \
   trainer.test_freq=-1 \
   trainer.val_before_train=False \
   trainer.resume_mode=${RESUME_MODE} \
@@ -101,4 +107,4 @@ python3 -m verl.trainer.main_ppo \
   trainer.project_name=es-capacity \
   trainer.experiment_name=${RUN_NAME} \
   trainer.logger='["console","tensorboard"]' \
-  trainer.nccl_timeout=1800
+  actor_rollout_ref.nccl_timeout=1800
