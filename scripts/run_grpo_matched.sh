@@ -29,7 +29,7 @@ export ES_AT_SCALE_PATH=${ES_AT_SCALE_PATH:-/workspace/repos/es-at-scale}
 # *_max_token_len_per_gpu only sets micro-batch splitting inside a single gradient update.
 # TOKGPU must stay >= data.max_prompt_length + data.max_response_length (4096) or the run
 # dies in compute_log_prob. Raise TOKGPU on larger cards for throughput.
-GPUMEM=${GPUMEM:-0.85}
+GPUMEM=${GPUMEM:-0.45}
 TOKGPU=${TOKGPU:-4096}
 MAXBT=${MAXBT:-4096}
 MAXSEQ=${MAXSEQ:-64}
@@ -54,6 +54,8 @@ fi
 # vllm/model-ui hold GPU memory that distorts vLLM's gpu_memory_utilization accounting
 # (it is computed against TOTAL device memory, not free memory).
 supervisorctl stop vllm model-ui ray >/dev/null 2>&1 || true
+
+export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 
 source "${VENV}/bin/activate"
 
@@ -88,6 +90,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.actor.entropy_coeff=0.0 \
   actor_rollout_ref.actor.calculate_entropy=True \
   actor_rollout_ref.actor.entropy_from_logits_with_chunking=True \
+  actor_rollout_ref.actor.entropy_checkpointing=True \
   actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean \
   actor_rollout_ref.actor.optim.lr=5e-7 \
   actor_rollout_ref.actor.optim.lr_scheduler_type=constant \
