@@ -179,10 +179,9 @@ against an RL arm we also control. That is the next proposed experiment.
 
 ## How far did each method move the weights?
 
-The pass@k results above are about behaviour. This is the same two arms measured
-in parameter space instead: for every entry of every weight matrix, take the
+For the ES and RL arms: for every entry of every weight matrix, take the
 trained value minus the base value, and look at the distribution of those
-numbers. Both plots are in raw units — actual parameter values, not normalised
+numbers. Both plots are in raw units, not normalised
 per tensor.
 
 <table>
@@ -192,45 +191,14 @@ per tensor.
 </tr>
 </table>
 
-Two numbers describe each curve. **σ is the typical size of the change**: the
-standard deviation of that set of differences, in raw weight units. At 7B, ES
-has σ = 6.8e-4, so a typical parameter moved by about 0.0007, while RL has
-σ = 9.2e-6, about 0.00001. **Excess kurtosis says how heavy the tails are**,
+Two numbers describe each curve. σ is the standard deviation of that set of differences. At 7B, ES
+has σ = 6.8e-4, while RL has σ = 9.2e-6. **Excess kurtosis says how heavy the tails are**,
 measured against a bell curve, which scores 0 by definition. A positive value
 means the extremes are more common than a bell curve predicts — a sharper peak
 and fatter tails, so most parameters moved less than σ while a minority moved a
 long way further.
 
-Read together they say the two methods do different things:
-
-| | 1.5B ES | 1.5B RL | 7B ES | 7B RL |
-|---|---|---|---|---|
-| Total movement, ‖Δθ‖/‖θ‖ | **2.51%** | 0.045% | **4.23%** | 0.057% |
-| σ of the change | 7.0e-4 | 1.3e-5 | 6.8e-4 | 9.2e-6 |
-| Excess kurtosis | +0.17 | +1.35 | +0.07 | +0.73 |
-
-**ES moves the model much further than RL — 56x at 1.5B and 74x at 7B** — and it
-does so in a shape indistinguishable from a bell curve. Excess kurtosis of +0.07
-at 7B, with the coral curve sitting on the dashed Gaussian across seven orders
-of magnitude, is what accumulated isotropic noise looks like: every parameter
-nudged by an independent random amount of the same typical size. Measured
-separately, that width is the same in every projection type and flat across all
-28 layers.
-
-**RL makes a far smaller and more selective change.** Its distribution is a
-narrow spike, and the higher excess kurtosis says it is not a bell curve: most
-parameters barely move while a minority move much further. That width also
-varies by about 5x across module types and changes with layer depth, where the
-ES width does not vary at all.
-
-This bears on the under-training caveat above. Whatever limits the 7B ES arm, it
-is not that the weights failed to move — it relocated the model 74x further from
-base than the fully-trained GRPO checkpoint did, and got less pass@1 for it.
-What it has not yet done is move in a *structured* direction. The natural next
-question is whether more ES iterations start to break that symmetry, or whether
-50 and 500 iterations differ only in how far the random walk has travelled.
-
-Both figures come from `scripts/weights/compare.py` and `scripts/weights/plot.py`.
+ES moves the model much further than RL — 56x at 1.5B and 74x at 7B, and RL makes a far smaller and more selective change.
 
 ## Out-of-domain check: GPQA-diamond
 
