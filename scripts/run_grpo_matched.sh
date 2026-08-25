@@ -47,7 +47,7 @@ done
 if [[ $SMOKE -eq 1 ]]; then
   STEPS=3; SAVE_FREQ=3; RUN_NAME=grpo-1.5b-matched-smoke; CKPT="${CKPT}-smoke"
 else
-  STEPS=51; SAVE_FREQ=5; RUN_NAME=grpo-1.5b-matched
+  STEPS=50; SAVE_FREQ=10; RUN_NAME=grpo-1.5b-matched
 fi
 
 # verl starts its own Ray head; the image ships one that would collide on :6379.
