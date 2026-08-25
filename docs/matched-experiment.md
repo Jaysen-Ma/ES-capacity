@@ -1,7 +1,7 @@
 # Matched-budget ES vs. GRPO — 1.5B
 
-**Status:** not yet run at full budget. This document is the pre-registration and the
-runbook.
+**Status:** running at full budget since 2026-08-25 (50 steps, checkpoints every 10).
+This document is the pre-registration and the runbook; measured numbers are marked as such.
 
 The arm has now been **smoke-run end to end** (2 steps, Qwen2.5-1.5B, reduced batch, on
 8x RTX 3060 12GB) to prove the pipeline executes: `actor/pg_clipfrac = 0.0` on every step
@@ -378,8 +378,26 @@ training throughput of **45,969 tok/s**.
 **51 steps ≈ 4h49m**, range 4–7h. Compare ES's measured 3h22m35s.
 
 > **Stale on current hardware.** These numbers assume 8x RTX 4090 48GB at micro-batch 16.
-> On this box's 12GB cards see the deviation note under [System](#system) -- expect ~26h,
-> pending a timed full-config probe step.
+> Measured on this box's 12GB cards, 2026-08-25, step 1 at the full matched budget:
+
+| phase | 4090 est. | **3060 measured** |
+|---|---|---|
+| generation (8,192 rollouts) | ~77 s | **487 s** |
+| `old_log_prob` forward | ~48 s | **483 s** |
+| forward+backward | ~194 s | **1,433 s** |
+| weight sync | ~20 s | **6 s** |
+| **per step** | **~340 s** | **2,413 s (40.2 min)** |
+| **50 steps** | **~4h49m** | **~33.5 h** |
+
+Aggregate throughput is **3,691 tok/s** against the 45,969 tok/s the 4090 estimate assumes --
+part slower silicon, part the micro-batch-1 penalty from `TOKGPU=4096`.
+
+**Raising `GPUMEM` is not the lever it looks like.** Generation is only 20% of the step;
+`update_actor` is 59%. Halving generation time would save ~4 min/step, ~3h overall. The real
+cost is the gradient phase, which is bounded by `TOKGPU`, and `TOKGPU` cannot be raised:
+step 1 peaked at 7.86 GB allocated / 10.38 GB reserved of 11.63 GB, leaving under 1.3 GB
+headroom, while doubling `TOKGPU` to 8192 would add ~1.3 GB to the logits tensor alone.
+On this hardware ~33h is close to the floor for the matched budget.
 
 Method check: ES's 230 s/iteration × 51 = 3h15m against a reported 3h22m — close enough to
 trust the arithmetic.
@@ -573,6 +591,22 @@ bash scripts/run_grpo_matched.sh
 ### Smoke-test acceptance criteria
 
 Do not start the long run until all of these hold:
+
+Status after step 1 of the full run (2026-08-25, `logs/grpo_full.log`), which is a
+stronger check than the smoke since it runs the real budget:
+
+| criterion | expected | step 1 | |
+|---|---|---|---|
+| `actor/pg_clipfrac` | 0.0 | 0.0 | pass |
+| `actor/kl_loss` | 0.0 | 0.0 | pass |
+| mean response length | ~982 | 979.1 | pass |
+| non-zero rewards appear | yes | 0.0143 | pass |
+| no OOM at full budget | - | 7.86/11.63 GB | pass |
+
+`response_length/mean = 979` against a pre-registered ~982 is the notable one: the
+generation distribution matches the ES arm's despite a different trainer and sampler.
+`response_length/clip_ratio = 0.287` -- 29% of responses hit the 2048 cap and therefore
+score 0.0 under ES's strict `\boxed{}` grader, which is the intended behaviour, not a bug.
 
 - [ ] flash-attn imports and the varlen path is active (`use_remove_padding` effective).
       Without it you pay 25.2M padded tokens/step instead of 10.0M — 2.5× the compute,
