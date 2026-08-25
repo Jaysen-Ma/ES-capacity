@@ -23,6 +23,8 @@ CKPT=${CKPT:-/workspace/ckpt/grpo-1.5b-matched}
 MODEL=${MODEL:-Qwen/Qwen2.5-1.5B}
 export ES_AT_SCALE_PATH=${ES_AT_SCALE_PATH:-/workspace/repos/es-at-scale}
 
+# Do NOT set PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True here. vLLM's CuMemAllocator
+# (sleep mode / free_cache_engine) asserts against it and the engine dies at init.
 # Memory knobs. Defaults target the 8x RTX 3060 12GB box this repo currently runs on;
 # the doc's original values assumed 8x RTX 4090 48GB. None of these change the
 # optimization math: with use_dynamic_bsz=True and ppo_mini_batch_size == train_batch_size,
@@ -54,8 +56,6 @@ fi
 # vllm/model-ui hold GPU memory that distorts vLLM's gpu_memory_utilization accounting
 # (it is computed against TOTAL device memory, not free memory).
 supervisorctl stop vllm model-ui ray >/dev/null 2>&1 || true
-
-export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 
 source "${VENV}/bin/activate"
 
