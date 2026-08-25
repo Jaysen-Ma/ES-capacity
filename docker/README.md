@@ -75,6 +75,17 @@ rather than the algorithms. See `docs/matched-experiment.md`.
 **`/venv/eval` is frozen deliberately.** The published pass@k numbers in this repo were produced
 under that stack. Upgrading it would break comparability with results already committed.
 
+**flash-attn GPU coverage — verified, not assumed.** The ABI note below is about
+*linking*; this is about whether the kernels run at all. The wheel ships native cubins for
+**sm_80, sm_90, sm_100, sm_120** and **no PTX whatsoever**, so there is no JIT fallback to
+paper over a missing architecture. Neither the 4090 (sm_89) nor the 3060 (sm_86) has its
+own cubin. They work because of CUDA's minor-version rule — a `sm_X.y` cubin runs on any
+`sm_X.z` with `z >= y` — so both are served by the sm_80 cubin. H100 (sm_90) is native.
+Confirmed empirically by running a real `flash_attn_func` call on sm_86 hardware, rather
+than trusting the rule. Expect untuned (working, but not Ada-optimal) performance on 4090.
+If a future target is a new *major* compute capability with no cubin listed above, this
+wheel will fail at kernel launch with no warning at import time.
+
 **flash-attn ABI.** The wheel's `cxx11abi` tag must match torch's `_GLIBCXX_USE_CXX11_ABI`.
 The rule is **version-based, not index-based**: every torch >=2.7 Linux wheel sets the flag on
 after PyTorch's manylinux_2_28 migration, and the default PyPI wheel for 2.8.0 is itself the
@@ -136,6 +147,38 @@ Nothing here is necessarily wrong — all arms are scored under the same eval, s
 comparison between them stays internally fair. But the training objective and the
 reported metric are not the same function, the gap is asymmetric between the ES and RL
 arms, and that belongs in the writeup rather than in a build file.
+
+## Operational pitfalls
+
+Things that will not fail the build, but will cost you a session.
+
+**`on_start.sh` moves ES-capacity onto `main` at every boot.** It syncs that repo to
+`${ES_CAPACITY_REF:-main}`. If you are working on a branch, a reboot silently checks out
+`main` and your work disappears from the working tree — the commits survive on the branch,
+but nothing tells you the tree moved. Export `ES_CAPACITY_REF=<your-branch>` in the
+instance's environment, or merge before rebooting.
+
+**A dirty working tree makes the boot-time pull fail, quietly.** `sync_repo` runs
+`git pull --ff-only` and swallows failure with a `WARN` line, so a rebooted instance
+happily runs stale code. Treat *commit and push before teardown* as a hard rule: these
+repos are cloned fresh at boot, so anything unpushed is gone when the instance dies.
+
+**ES engine startup is ~8x longer than it needs to be.** `es_trainer.py` gives every
+engine its own `VLLM_CACHE_ROOT`, so none of the 8 reuse the first one's `torch.compile`
+artefacts, and they are constructed serially. Measured ~15 min to first iteration on
+8x RTX 3060; proportionally less on faster cards, but still 8x redundant compilation. The
+per-engine isolation was a workaround for vLLM 0.26.0 and `SETUP_NOTES.md` records that it
+was never re-tested under the pinned 0.11.0.
+
+**Set `HF_HUB_OFFLINE=1` once models are cached.** Otherwise every engine start blocks on
+10s `ReadTimeoutError`s doing `HEAD config.json` for a model already on disk.
+
+**verl v0.7.1 routes rollouts through `AgentLoopWorker` + `vLLMHttpServer`**, which is
+newer than what `docs/matched-experiment.md` describes. Metrics come out as expected
+(`num_turns: 2.0`, single-turn), but that document's acceptance criterion "no
+reference-policy worker in the Ray dashboard" was written against the older worker
+implementation and should be re-checked against the dashboard on the first real run rather
+than assumed.
 
 ## Build-time knobs
 

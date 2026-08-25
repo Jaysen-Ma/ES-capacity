@@ -1,6 +1,17 @@
 # Matched-budget ES vs. GRPO — 1.5B
 
-**Status:** not yet run. This document is the pre-registration and the runbook.
+**Status:** not yet run at full budget. This document is the pre-registration and the
+runbook.
+
+The arm has now been **smoke-run end to end** (2 steps, Qwen2.5-1.5B, reduced batch, on
+8x RTX 3060 12GB) to prove the pipeline executes: `actor/pg_clipfrac = 0.0` on every step
+as required below, a nonzero reward and gradient once a rollout lands. That run fixed three
+startup-fatal config errors — see [Checkpointing and resume](#checkpointing-and-resume) —
+and surfaced two issues that affect interpretation of the results, not just execution:
+[confound 5](#known-confounds) and
+[the ES checkpoint format](#the-es-checkpoint-needs-converting-before-it-can-be-evaluated).
+The timings in [Wall-clock expectation](#wall-clock-expectation) remain **unvalidated**;
+the smoke config was deliberately far too small to extrapolate from.
 
 ## The question this run answers
 
@@ -252,10 +263,28 @@ Budget is **128 GB** on `/workspace`. A 1.5B checkpoint with optimizer state is 
 
 ```yaml
 trainer.save_freq: 5
-trainer.max_ckpt_to_keep: 2
+trainer.max_actor_ckpt_to_keep: 2          # NOT max_ckpt_to_keep -- see below
 actor_rollout_ref.actor.checkpoint.save_contents: ['model','optimizer','extra','hf_model']
 trainer.default_local_dir: /workspace/ckpt/grpo-1.5b-matched
 ```
+
+**Three keys in earlier revisions of this document did not exist in verl v0.7.1**, and
+each aborted the run during config composition, before any training:
+
+| was | is |
+|---|---|
+| `trainer.max_ckpt_to_keep` | `trainer.max_actor_ckpt_to_keep` (retention is split per role) |
+| `trainer.nccl_timeout` | `actor_rollout_ref.nccl_timeout` (`ppo_trainer.yaml:52`) |
+| *(unset)* `data.val_files` | must be set — see below |
+
+`data.val_files` is required even though validation is off: verl constructs a validation
+dataset unconditionally, and `val_before_train=False` / `test_freq=-1` do not skip it. Left
+unset it resolves to `~/data/rlhf/gsm8k/test.parquet` and the run dies with
+`FileNotFoundError`. `run_grpo_matched.sh` points it at the train parquet; with validation
+disabled it is never read.
+
+Validate override keys against `/opt/verl/verl/trainer/config/ppo_trainer.yaml` (and the
+`_generated_*.yaml` variants) rather than against this document.
 
 → ~50 GB peak, resume granularity 5 steps (~28 min of work lost worst case).
 
@@ -324,7 +353,7 @@ single policy with prefix caching across the 32 rollouts sharing each prompt. GR
 ~240 s/step on gradient compute that ES never pays. Net: **GRPO ≈ 1.45× ES**, not the large
 multiple one might assume from "backprop is expensive".
 
-## The ES checkpoint is not loadable by anything downstream
+## The ES checkpoint needs converting before it can be evaluated
 
 `ES-capacity` evaluates a model by pointing `scripts/run_eval.sh` at a HuggingFace
 directory, which `math_eval.py` opens with `LLM(model=...)`. The ES trainer does not
@@ -344,10 +373,15 @@ model.layers.0.mlp.gate_up_proj.weight     (17920, 1536)  <- fused gate+up
 and no `lm_head.weight` (Qwen2.5-1.5B ties embeddings, so vLLM never exposes it). A
 single `pytorch_model.pth`, no `config.json`, no tokenizer files.
 
-So the pipeline has a hole between "ES run finishes" and "you can evaluate it", and
-**no conversion script exists in either repo** (nothing references `qkv_proj` or
-`gate_up_proj` anywhere). The published artefacts — e.g. `zocrate/Qwen2.5-1.5B-ES-math` —
-*are* standard HF directories, so the conversion was done, off-repo and unrecorded.
+So there is a **required conversion step** between "ES run finishes" and "you can
+evaluate it". The published artefacts — e.g. `zocrate/Qwen2.5-1.5B-ES-math` — are standard
+HF directories, so the conversion is done as part of the normal workflow.
+
+**The converter is deliberately not tracked in this repo.** Nothing here references
+`qkv_proj` or `gate_up_proj`, and that is by choice, not an oversight — do not "fix" it by
+committing one. The consequence to be aware of is only that a fresh clone does not carry
+the step, so it has to be brought to the box separately. The spec below is recorded here so
+the step is reconstructable if the untracked copy is ever lost.
 
 The un-fusing itself is mechanical and well-defined for Qwen2:
 
@@ -358,9 +392,9 @@ The un-fusing itself is mechanical and well-defined for Qwen2:
   duplicate tensor
 - `config.json` / tokenizer files must be copied from the base model
 
-Until that converter is written and committed, an ES run on a fresh box produces an
-artefact nothing downstream can read, and the published ES results cannot be reproduced
-end to end from this repo.
+Budget for this step when planning a run on a fresh box: the ES trainer's output is not
+directly consumable by `run_eval.sh`, so "training finished" is not the same as "ready to
+evaluate".
 
 ## Offline KL
 
