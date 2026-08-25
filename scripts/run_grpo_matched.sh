@@ -29,12 +29,15 @@ export ES_AT_SCALE_PATH=${ES_AT_SCALE_PATH:-/workspace/repos/es-at-scale}
 # the doc's original values assumed 8x RTX 4090 48GB. None of these change the
 # optimization math: with use_dynamic_bsz=True and ppo_mini_batch_size == train_batch_size,
 # *_max_token_len_per_gpu only sets micro-batch splitting inside a single gradient update.
+# MAXLEN must be set explicitly: rollout.max_model_len defaults to null, and vLLM then sizes
+# KV cache for Qwen2.5's full 131072 context and refuses to start below ~GPUMEM 0.85.
 # TOKGPU must stay >= data.max_prompt_length + data.max_response_length (4096) or the run
 # dies in compute_log_prob. Raise TOKGPU on larger cards for throughput.
 GPUMEM=${GPUMEM:-0.45}
 TOKGPU=${TOKGPU:-4096}
 MAXBT=${MAXBT:-4096}
 MAXSEQ=${MAXSEQ:-64}
+MAXLEN=${MAXLEN:-4096}
 OFFLOAD=${OFFLOAD:-True}
 
 SMOKE=0; RESUME_MODE=disable
@@ -108,6 +111,7 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.gpu_memory_utilization=${GPUMEM} \
   actor_rollout_ref.rollout.max_num_batched_tokens=${MAXBT} \
   actor_rollout_ref.rollout.max_num_seqs=${MAXSEQ} \
+  actor_rollout_ref.rollout.max_model_len=${MAXLEN} \
   actor_rollout_ref.rollout.free_cache_engine=True \
   actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True \
   actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${TOKGPU} \
