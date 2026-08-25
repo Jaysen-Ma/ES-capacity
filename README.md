@@ -177,6 +177,54 @@ settled against a fully-trained public checkpoint that saw 8x the data, 2x the
 generations and 4x the token cap — an ES arm we control has to be compared
 against an RL arm we also control. That is the next proposed experiment.
 
+## How far did each method move the weights?
+
+For the ES and RL arms: for every entry of every weight matrix, take the
+trained value minus the base value, and look at the distribution of those
+numbers. Both plots are in raw units, not normalised
+per tensor.
+
+<table>
+<tr>
+<td><img src="results/weights/figures/weight_change_1.5B.png" width="430" alt="Per-parameter weight change, 1.5B"></td>
+<td><img src="results/weights/figures/weight_change_7B.png" width="430" alt="Per-parameter weight change, 7B"></td>
+</tr>
+</table>
+
+Two numbers describe each curve. σ is the standard deviation of that set of differences. At 7B, ES
+has σ = 6.8e-4, while RL has σ = 9.2e-6. **Excess kurtosis says how heavy the tails are**,
+measured against a bell curve, which scores 0 by definition. A positive value
+means the extremes are more common than a bell curve predicts — a sharper peak
+and fatter tails, so most parameters moved less than σ while a minority moved a
+long way further.
+
+ES moves the model much further than RL — 56x at 1.5B and 74x at 7B, and RL makes a far smaller and more selective change.
+
+## Out-of-domain check: GPQA-diamond
+
+All post-training here is math-only, so the next question is does ES or RL cause model degrading and catastrophic forgetting elsewhere. GPQA-diamond zero-shot is the first probe: 198 graduate-level
+science questions, four choices each, scored by log-likelihood over the four
+options. All
+six arms, each scored under 10 different shuffles of the answer choices, with
+every arm seeing the identical shuffle within a seed.
+
+| Arm | mean acc over 10 permutations | sd | min | max |
+|---|---|---|---|---|
+| 1.5B-base | 23.79% | 2.23 | 20.71% | 28.79% |
+| 1.5B-ES | 25.05% | 3.12 | 20.20% | 29.29% |
+| 1.5B-RL | 23.69% | 2.81 | 18.18% | 28.28% |
+| 7B-base | 25.45% | 2.53 | 21.72% | 27.78% |
+| 7B-ES | 25.00% | 1.91 | 22.22% | 28.28% |
+| 7B-RL | 26.01% | 2.61 | 21.72% | 28.79% |
+
+**Both base models answer GPQA-diamond no better than random guessing, so this
+benchmark cannot answer the question.** There is no headroom to lose. 
+
+Measuring what
+math-only post-training costs elsewhere needs a benchmark these two bases
+already score above chance on. The proposed measurement is full MMLU — 57 subjects, scored per domain. That is what makes
+"what did math-only post-training cost the humanities?" answerable at all.
+
 ## Planned: "matched-budget" ES vs. RL
 
 **Not yet run.** The single biggest weakness in this repo is that every
@@ -222,31 +270,6 @@ where the advantage comes from, a generations-matched table will hide it and
 a time-matched one will show it. Memory follows the same split: ES holds no
 optimizer state, which is why this project's ES runs fit on 8x RTX 4090 at
 all.
-
-## Out-of-domain check: GPQA-diamond
-
-All post-training here is math-only, so the next question is does ES or RL cause model degrading and catastrophic forgetting elsewhere. GPQA-diamond zero-shot is the first probe: 198 graduate-level
-science questions, four choices each, scored by log-likelihood over the four
-options. All
-six arms, each scored under 10 different shuffles of the answer choices, with
-every arm seeing the identical shuffle within a seed.
-
-| Arm | mean acc over 10 permutations | sd | min | max |
-|---|---|---|---|---|
-| 1.5B-base | 23.79% | 2.23 | 20.71% | 28.79% |
-| 1.5B-ES | 25.05% | 3.12 | 20.20% | 29.29% |
-| 1.5B-RL | 23.69% | 2.81 | 18.18% | 28.28% |
-| 7B-base | 25.45% | 2.53 | 21.72% | 27.78% |
-| 7B-ES | 25.00% | 1.91 | 22.22% | 28.28% |
-| 7B-RL | 26.01% | 2.61 | 21.72% | 28.79% |
-
-**Both base models answer GPQA-diamond no better than random guessing, so this
-benchmark cannot answer the question.** There is no headroom to lose. 
-
-Measuring what
-math-only post-training costs elsewhere needs a benchmark these two bases
-already score above chance on. The proposed measurement is full MMLU — 57 subjects, scored per domain. That is what makes
-"what did math-only post-training cost the humanities?" answerable at all.
 
 ## Appendix
 

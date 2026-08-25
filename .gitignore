@@ -96,6 +96,17 @@ results/*_run.log
 results/gpqa_results/
 results/gpqa/
 
+# Weight-movement analysis: histograms, summary CSVs and figures for how far
+# ES and RL post-training moved the parameters. Local-only apart from the two
+# per-parameter weight-change figures the README embeds; the rest regenerates
+# from scripts/weights/compare.py in ~30 min. Written as four stepped rules
+# because git cannot re-include a file whose parent directory is excluded, so
+# `results/weights/` followed by a negation would silently not work.
+results/weights/*
+!results/weights/figures/
+results/weights/figures/*
+!results/weights/figures/weight_change_*.png
+
 # Only the two headline runs (1.5b-sigma001-iter50, 7b-sigma001-iter50) are
 # git-tracked; every other run stays local only.
 results/7b-sigma001-iter100/
