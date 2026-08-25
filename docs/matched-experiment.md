@@ -324,6 +324,44 @@ single policy with prefix caching across the 32 rollouts sharing each prompt. GR
 ~240 s/step on gradient compute that ES never pays. Net: **GRPO ≈ 1.45× ES**, not the large
 multiple one might assume from "backprop is expensive".
 
+## The ES checkpoint is not loadable by anything downstream
+
+`ES-capacity` evaluates a model by pointing `scripts/run_eval.sh` at a HuggingFace
+directory, which `math_eval.py` opens with `LLM(model=...)`. The ES trainer does not
+produce one.
+
+`save_self_weights_to_disk` does a plain `torch.save` over
+`self.model_runner.model.named_parameters()` — that is **vLLM's internal parameter
+layout**, not HuggingFace's. Verified against a checkpoint produced by this repo
+(Qwen2.5-1.5B, 198 tensors):
+
+```
+model.layers.0.self_attn.qkv_proj.weight   (2048, 1536)   <- fused q+k+v
+model.layers.0.mlp.gate_up_proj.weight     (17920, 1536)  <- fused gate+up
+```
+
+84 fused parameters, **zero** HF-style `q_proj`/`k_proj`/`v_proj`/`gate_proj`/`up_proj`,
+and no `lm_head.weight` (Qwen2.5-1.5B ties embeddings, so vLLM never exposes it). A
+single `pytorch_model.pth`, no `config.json`, no tokenizer files.
+
+So the pipeline has a hole between "ES run finishes" and "you can evaluate it", and
+**no conversion script exists in either repo** (nothing references `qkv_proj` or
+`gate_up_proj` anywhere). The published artefacts — e.g. `zocrate/Qwen2.5-1.5B-ES-math` —
+*are* standard HF directories, so the conversion was done, off-repo and unrecorded.
+
+The un-fusing itself is mechanical and well-defined for Qwen2:
+
+- `qkv_proj` (2048) splits `1536 / 256 / 256` — 12 query heads and 2 KV heads at
+  `head_dim=128` — into `q_proj`, `k_proj`, `v_proj`, for both `.weight` and `.bias`
+- `gate_up_proj` (17920) splits `8960 / 8960` into `gate_proj`, `up_proj`
+- `lm_head` is `embed_tokens` (tied); emit `tie_word_embeddings: true` rather than a
+  duplicate tensor
+- `config.json` / tokenizer files must be copied from the base model
+
+Until that converter is written and committed, an ES run on a fresh box produces an
+artefact nothing downstream can read, and the published ES results cannot be reproduced
+end to end from this repo.
+
 ## Offline KL
 
 Zeroing both KL paths means verl builds no reference policy and logs no KL. Measure it
@@ -373,6 +411,70 @@ Carried into this run and **not** fixed by budget matching:
 
 4. **Single seed.** One run per arm, and AIME24 is 30 questions. A pass@k crossover at n=30 with
    one seed is suggestive, not conclusive. Bootstrap CIs over questions at minimum.
+
+5. **The training reward and the reported metric are different functions, and the gap is
+   asymmetric between the arms.** This is the one confound here that is not merely a
+   limitation — it cuts directly at the ES-vs-RL contrast.
+
+   Three different answer-extraction rules are in play. The prompt template is shared;
+   the extraction is not.
+
+   | stage | extraction | no `\boxed{}` present | equivalence |
+   |---|---|---|---|
+   | **ES training** (`boxed_reward_fn`) | last `\boxed{}` **only** | **reward 0.0** | mathd / sympy / math-verify |
+   | **GRPO matched** (`es_reward_verl.py`) | same — wraps ES verbatim | **reward 0.0** | same as ES |
+   | **SimpleRL-Zoo training** (`hf_math_verify`) | boxed -> `he answer is` -> `final answer is` -> **last number in string** | scored anyway | math-verify |
+   | **pass@k eval** (`math_eval/parser.py`) | *identical fallback chain to SimpleRL's* | scored anyway | `math_equal`, `include_percentage=True` |
+
+   The eval harness and SimpleRL-Zoo both use the Qwen2.5-Math eval toolkit parser — the
+   `extract_answer` logic is the same. So **the published RL arm was trained against
+   essentially the extraction rule it is scored with, and the ES arm was not.**
+
+   Measured on the two graders as installed (7 hand-built cases, 5 disagree):
+
+   | response | ground truth | ES training reward | pass@k eval |
+   |---|---|---|---|
+   | `The answer is 42.` | 42 | 0.0 | **1.0** |
+   | `...so the final answer is 42` | 42 | 0.0 | **1.0** |
+   | `After simplifying we get 42` | 42 | 0.0 | **1.0** |
+   | `I think it's 7 or maybe 42` | 42 | 0.0 | **1.0** |
+   | `\boxed{0.5}` | 50 | 0.0 | **1.0** (`include_percentage`) |
+   | `Thus \boxed{42}.` | 42 | 1.0 | 1.0 |
+   | `\boxed{42}` | 42 | 1.0 | 1.0 |
+
+   Note the last-number fallback scores a hedged non-answer, and `include_percentage=True`
+   in `math_equal` accepts `reference/100`, `reference` and `reference*100` alike.
+
+   **Which way it cuts.** ES was trained to emit `\boxed{}` — this document records
+   emission rising 14.6% -> 24.2% under the ES template. The eval awards credit without
+   it, so that format gain is largely invisible in the reported pass@k, while SimpleRL
+   never needed it. Under a strict-boxed eval the ES arm would likely look *better*
+   relative to RL than it currently does. The comparison between arms stays internally
+   fair — every arm is scored under the same eval — but "ES preserves the ceiling" is
+   being measured through an extraction path ES was never rewarded for.
+
+   The same reasoning already appears in this document, applied to the *matched* GRPO arm:
+   verl's `hf_math_verify` was rejected because it "would hand GRPO an easier reward and
+   remove the format headroom ES had to climb." That argument was never extended to the
+   eval side, or to the published SimpleRL checkpoint in the headline 7B results.
+
+   **The existing validation gate does not cover this.** `scripts/check_grader_agreement.py`
+   compares ES's grader against verl's `hf_math_verify` — i.e. two *training* graders. It
+   says nothing about ES-training vs pass@k-eval, which is the pair that matters here.
+
+   **Secondary: the grader has an unpinned version.** `math-verify` reached `/venv/train`
+   transitively through verl's unversioned `math` extra, and it *is* in the ES reward path
+   — `es_trainer.py` calls the reward via `functools.partial(reward_function)` with no
+   `fast` argument, so `fast=False` and `is_latex_equal` (math-verify) runs as the final
+   arm of the correctness check. Versions disagree: 0.6.0 grades `\boxed{50\%}` against
+   `0.5` as correct, 0.9.0 does not. It is now pinned at 0.9.0 in the image, but **which
+   version produced the already-published ES results is not recorded anywhere.** Relatedly,
+   `reward_function_timeout` (default 10s) converts a slow grade into reward 0.0, and
+   math-verify is the slow path — so grader version also perturbs the timeout rate.
+
+   **What would resolve it:** re-score the existing completion dumps under ES's strict
+   grader and report pass@k both ways. This needs no retraining — `run_eval.sh` already
+   writes per-sample outputs — and it converts an unquantified confound into a number.
 
 ## Runbook
 
