@@ -96,6 +96,24 @@ def masked(counts: np.ndarray) -> np.ndarray:
     return np.where(counts > 0, counts, np.nan)
 
 
+def density(h: dict) -> np.ndarray:
+    """Counts divided by bin width — parameters per unit of weight change.
+
+    NOT raw counts. Each series is binned over its own +/-6 sigma, so the ES and
+    RL histograms have bin widths ~600x apart, and a raw count says "how many
+    parameters fell in a window of this arm's own width". Plotting those against
+    each other silently compares two different y quantities in one panel, which
+    is the dual-axis mistake wearing a disguise: it made the far more
+    concentrated RL change look no taller than the ES change, when in truth it
+    is ~250x taller.
+
+    Dividing by bin width fixes it. Both curves then integrate to the same
+    parameter count, so a narrower distribution has to be taller, which is what
+    "the weights barely moved" should look like.
+    """
+    return masked(h["counts"]) / h["width"]
+
+
 def rebin(h: dict, factor: int) -> dict:
     """Sum adjacent bins. Exact — the CSV keeps the full 512-bin resolution."""
     if factor <= 1:
@@ -168,10 +186,10 @@ def common_factor(hs: list[dict], region: float = 2.0) -> int:
 
 
 def gaussian_ref(h: dict) -> np.ndarray:
-    """Expected per-bin counts for a normal with the same n, mean and sigma."""
+    """Density of a normal with the same n, mean and sigma — matches density()."""
     z = (h["centers"] - h["mean"]) / h["std"]
     pdf = np.exp(-0.5 * z ** 2) / (h["std"] * math.sqrt(2 * math.pi))
-    return h["n"] * h["width"] * pdf
+    return h["n"] * pdf
 
 
 def style(ax) -> None:
@@ -212,12 +230,12 @@ def fig_raw_weights(H: dict, scale: str, out: Path) -> None:
     factor = common_factor([h for _, h, _, _ in present], region=5.0)
     for arm, h, lw, alpha in present:
         h = rebin(h, factor)
-        ax.step(h["centers"], masked(h["counts"]), where="mid",
+        ax.step(h["centers"], density(h), where="mid",
                 color=COLORS[arm], linewidth=lw, alpha=alpha,
                 label=f"{NAMES[arm]}   $\\sigma$ = {h['std']:.5f}")
     ax.set_yscale("log")
     ax.set_xlabel("Parameter value (raw)")
-    ax.set_ylabel("Parameters per bin")
+    ax.set_ylabel("Parameters per unit weight")
     ax.set_title(f"Qwen2.5-{scale}: raw weight distribution, all weight matrices")
     ax.legend(loc="upper right", frameon=True, fontsize=8)
     ax.text(0.5, -0.19, "residual sawtooth in the tails is the bfloat16 storage "
@@ -254,23 +272,23 @@ def fig_delta_pooled(H: dict, scale: str, out: Path) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.4))
 
     ax = axes[0]
-    ax.step(es["centers"], masked(es["counts"]), where="mid",
+    ax.step(es["centers"], density(es), where="mid",
             color=COLORS["ES"], linewidth=1.8, label=label_with_shape(es, "ES"))
     ax.plot(es["centers"], gaussian_ref(es), color="#8a8a8a", linewidth=1.2,
             linestyle="--", label="Gaussian, same $\\sigma$")
-    ax.step(rl["centers"], masked(rl["counts"]), where="mid",
+    ax.step(rl["centers"], density(rl), where="mid",
             color=COLORS["RL"], linewidth=1.8, label=label_with_shape(rl, "RL"))
     ax.set_yscale("log")
     ax.set_xlim(es["centers"][0], es["centers"][-1])
     ax.set_xlabel("Weight change (raw)")
-    ax.set_ylabel("Parameters per bin")
+    ax.set_ylabel("Parameters per unit change")
     ax.set_title("Both arms on one raw scale")
     style(ax)
     headroom(ax, 2.2)
     ax.legend(loc="upper left", frameon=True, fontsize=7.5)
 
     ax = axes[1]
-    ax.step(rl["centers"], masked(rl["counts"]), where="mid",
+    ax.step(rl["centers"], density(rl), where="mid",
             color=COLORS["RL"], linewidth=1.8, label=NAMES["RL"])
     ax.plot(rl["centers"], gaussian_ref(rl), color="#8a8a8a", linewidth=1.2,
             linestyle="--", label="Gaussian, same $\\sigma$")
@@ -311,7 +329,7 @@ def fig_delta_by_module(H: dict, S: dict, scale: str, out: Path) -> None:
         widest = None
         for h in raw:
             h = rebin(h, factor)
-            ax.step(h["centers"], masked(h["counts"]), where="mid",
+            ax.step(h["centers"], density(h), where="mid",
                     color=COLORS[arm], linewidth=1.3, alpha=0.55)
             if widest is None or h["std"] > widest["std"]:
                 widest = h
@@ -328,9 +346,9 @@ def fig_delta_by_module(H: dict, S: dict, scale: str, out: Path) -> None:
         style(ax)
         headroom(ax, 1.8)
         ax.legend(handles=handles, loc="upper left", frameon=True, fontsize=7.5)
-    axes[0].set_ylabel("Parameters per bin")
-    axes[0].text(0.5, -0.22, "curve height tracks how many parameters the module "
-                 "has; what to compare is the width",
+    axes[0].set_ylabel("Parameters per unit change")
+    axes[0].text(0.5, -0.22, "area under each curve is that module's parameter "
+                 "count, so a narrower change is a taller curve",
                  transform=axes[0].transAxes, ha="center", fontsize=7.5,
                  color="#555555")
 
