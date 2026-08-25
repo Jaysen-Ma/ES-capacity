@@ -219,6 +219,40 @@ FSDP re-all-gathers parameters every micro-batch, so gradient accumulation does 
 its comms — only a large micro-batch does. DDP amortizes well but OOMs at micro-batch 4 (49.2 GB
 at mb=2) and cannot host colocated vLLM. Hence FSDP with a large micro-batch.
 
+#### Deviation: this box is 8x RTX 3060 12GB, not 8x RTX 4090 48GB
+
+Everything above was measured on 48GB cards. `run_grpo_matched.sh` now defaults to a 12GB
+config, overridable per knob:
+
+| env var | default | override key |
+|---|---|---|
+| `OFFLOAD` | `True` | `actor.fsdp_config.param_offload` / `.optimizer_offload` |
+| `GPUMEM` | `0.85` | `rollout.gpu_memory_utilization` |
+| `TOKGPU` | `4096` | `actor.ppo_max_token_len_per_gpu`, `rollout.log_prob_max_token_len_per_gpu` |
+| `MAXBT` | `4096` | `rollout.max_num_batched_tokens` |
+| `MAXSEQ` | `64` | `rollout.max_num_seqs` |
+
+These are ported from the 12GB smoke that passed on 2026-08-25 and were re-validated with
+`--cfg job --resolve`, but that smoke ran at `train_batch_size=8`, `rollout.n=4`,
+`max_response_length=512`. **They are not yet validated at the matched budget** (256 x 32 x
+2048); the first full-config step is the real test.
+
+None of these change the optimization math. With `use_dynamic_bsz=true` and
+`ppo_mini_batch_size == train_batch_size`, `ppo_max_token_len_per_gpu` sets only how a single
+gradient update is split into accumulated micro-batches. `param_offload`/`optimizer_offload`
+move state to host RAM between uses. The comparison against ES is preserved.
+
+**But the throughput cost is severe and invalidates the wall-clock estimate below.**
+`TOKGPU=4096` equals `max_prompt_length + max_response_length`, so a micro-batch is a single
+full-length sequence -- the `micro-batch 1` row of the table above, 4,765 tok/s, not the
+45,969 tok/s the 5h estimate is anchored on. At that rate the 8.93M tokens/step of
+forward+backward alone is ~31 min, putting 51 steps near **26h rather than 4h49m**.
+
+`TOKGPU` is bounded mainly by the vocabulary projection, not activations: logits for T tokens
+cost `T x 151936 x 2` bytes in bf16 and are upcast to fp32 for `log_softmax`, so T=4096 is
+~3.7GB of the 12GB on its own. Probe upward from 4096 before assuming the 26h figure --
+recovering even 8192 roughly halves the gradient phase.
+
 ## Data preparation
 
 Rebuild the parquet with the **ES template** — do not use SimpleRL's shipped `train.parquet`.
@@ -342,6 +376,10 @@ training throughput of **45,969 tok/s**.
 | **per step** | **~340 s** |
 
 **51 steps ≈ 4h49m**, range 4–7h. Compare ES's measured 3h22m35s.
+
+> **Stale on current hardware.** These numbers assume 8x RTX 4090 48GB at micro-batch 16.
+> On this box's 12GB cards see the deviation note under [System](#system) -- expect ~26h,
+> pending a timed full-config probe step.
 
 Method check: ES's 230 s/iteration × 51 = 3h15m against a reported 3h22m — close enough to
 trust the arithmetic.
@@ -517,7 +555,7 @@ Carried into this run and **not** fixed by budget matching:
 supervisorctl stop vllm model-ui ray
 
 # 1. environment (already built)
-source /workspace/venvs/verl/bin/activate
+source /venv/train/bin/activate
 
 # 2. data
 python scripts/build_matched_parquet.py --out /workspace/data/lvl3to5_es_template/train.parquet

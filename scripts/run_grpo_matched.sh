@@ -23,6 +23,18 @@ CKPT=${CKPT:-/workspace/ckpt/grpo-1.5b-matched}
 MODEL=${MODEL:-Qwen/Qwen2.5-1.5B}
 export ES_AT_SCALE_PATH=${ES_AT_SCALE_PATH:-/workspace/repos/es-at-scale}
 
+# Memory knobs. Defaults target the 8x RTX 3060 12GB box this repo currently runs on;
+# the doc's original values assumed 8x RTX 4090 48GB. None of these change the
+# optimization math: with use_dynamic_bsz=True and ppo_mini_batch_size == train_batch_size,
+# *_max_token_len_per_gpu only sets micro-batch splitting inside a single gradient update.
+# TOKGPU must stay >= data.max_prompt_length + data.max_response_length (4096) or the run
+# dies in compute_log_prob. Raise TOKGPU on larger cards for throughput.
+GPUMEM=${GPUMEM:-0.85}
+TOKGPU=${TOKGPU:-4096}
+MAXBT=${MAXBT:-4096}
+MAXSEQ=${MAXSEQ:-64}
+OFFLOAD=${OFFLOAD:-True}
+
 SMOKE=0; RESUME_MODE=disable
 for a in "$@"; do
   case "$a" in
@@ -65,14 +77,17 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.model.enable_gradient_checkpointing=True \
   \
   actor_rollout_ref.actor.strategy=fsdp2 \
+  actor_rollout_ref.actor.fsdp_config.param_offload=${OFFLOAD} \
+  actor_rollout_ref.actor.fsdp_config.optimizer_offload=${OFFLOAD} \
   actor_rollout_ref.actor.ppo_mini_batch_size=256 \
   actor_rollout_ref.actor.ppo_epochs=1 \
   actor_rollout_ref.actor.use_dynamic_bsz=True \
-  actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
+  actor_rollout_ref.actor.ppo_max_token_len_per_gpu=${TOKGPU} \
   actor_rollout_ref.actor.use_kl_loss=False \
   actor_rollout_ref.actor.kl_loss_coef=0.0 \
   actor_rollout_ref.actor.entropy_coeff=0.0 \
   actor_rollout_ref.actor.calculate_entropy=True \
+  actor_rollout_ref.actor.entropy_from_logits_with_chunking=True \
   actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-mean \
   actor_rollout_ref.actor.optim.lr=5e-7 \
   actor_rollout_ref.actor.optim.lr_scheduler_type=constant \
@@ -87,9 +102,12 @@ python3 -m verl.trainer.main_ppo \
   actor_rollout_ref.rollout.top_p=1.0 \
   actor_rollout_ref.rollout.top_k=-1 \
   actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
-  actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+  actor_rollout_ref.rollout.gpu_memory_utilization=${GPUMEM} \
+  actor_rollout_ref.rollout.max_num_batched_tokens=${MAXBT} \
+  actor_rollout_ref.rollout.max_num_seqs=${MAXSEQ} \
   actor_rollout_ref.rollout.free_cache_engine=True \
   actor_rollout_ref.rollout.log_prob_use_dynamic_bsz=True \
+  actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu=${TOKGPU} \
   \
   custom_reward_function.path="${REPO}/scripts/es_reward_verl.py" \
   custom_reward_function.name=compute_score \
