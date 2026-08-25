@@ -258,6 +258,44 @@ def label_with_shape(h: dict, arm: str) -> str:
             f"excess kurtosis {h['kurt']:+.2f}")
 
 
+def draw_both_arms(ax, es: dict, rl: dict, fontsize: float = 8.0) -> None:
+    """Both arms' weight-change distributions on one shared raw x-axis.
+
+    Shared by the two-panel local figure and the standalone one committed to
+    the README, so the published figure cannot drift from the analysis one.
+    """
+    ax.step(es["centers"], density(es), where="mid",
+            color=COLORS["ES"], linewidth=1.8, label=label_with_shape(es, "ES"))
+    ax.plot(es["centers"], gaussian_ref(es), color="#8a8a8a", linewidth=1.2,
+            linestyle="--", label="Gaussian, same $\\sigma$")
+    ax.step(rl["centers"], density(rl), where="mid",
+            color=COLORS["RL"], linewidth=1.8, label=label_with_shape(rl, "RL"))
+    ax.set_yscale("log")
+    ax.set_xlim(es["centers"][0], es["centers"][-1])
+    ax.set_xlabel("Weight change (raw)")
+    ax.set_ylabel("Parameters per unit change")
+    style(ax)
+    headroom(ax, 2.2)
+    ax.legend(loc="upper right", frameon=True, fontsize=fontsize)
+
+
+def fig_weight_change(H: dict, scale: str, out: Path) -> None:
+    """Standalone version of the shared-scale panel — this one is committed.
+
+    Two of these sit side by side in the README, so it has to stand on its own:
+    its own title naming the model, and the width and tail-heaviness of each arm
+    in the legend rather than in surrounding panels.
+    """
+    es = auto_rebin(H["ES"][("delta", "pooled", "all")])
+    rl = auto_rebin(H["RL"][("delta", "pooled", "all")])
+    fig, ax = plt.subplots(figsize=(5.9, 4.3))
+    draw_both_arms(ax, es, rl, fontsize=8)
+    ax.set_title(f"Qwen2.5-{scale}: per-parameter weight change", fontsize=11)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+
+
 def fig_delta_pooled(H: dict, scale: str, out: Path) -> None:
     """The headline: how far each method actually moved each parameter.
 
@@ -271,21 +309,8 @@ def fig_delta_pooled(H: dict, scale: str, out: Path) -> None:
     rl = auto_rebin(rl_wide)
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.4))
 
-    ax = axes[0]
-    ax.step(es["centers"], density(es), where="mid",
-            color=COLORS["ES"], linewidth=1.8, label=label_with_shape(es, "ES"))
-    ax.plot(es["centers"], gaussian_ref(es), color="#8a8a8a", linewidth=1.2,
-            linestyle="--", label="Gaussian, same $\\sigma$")
-    ax.step(rl["centers"], density(rl), where="mid",
-            color=COLORS["RL"], linewidth=1.8, label=label_with_shape(rl, "RL"))
-    ax.set_yscale("log")
-    ax.set_xlim(es["centers"][0], es["centers"][-1])
-    ax.set_xlabel("Weight change (raw)")
-    ax.set_ylabel("Parameters per unit change")
-    ax.set_title("Both arms on one raw scale")
-    style(ax)
-    headroom(ax, 2.2)
-    ax.legend(loc="upper left", frameon=True, fontsize=7.5)
+    draw_both_arms(axes[0], es, rl, fontsize=7.5)
+    axes[0].set_title("Both arms on one raw scale")
 
     ax = axes[1]
     ax.step(rl["centers"], density(rl), where="mid",
@@ -425,9 +450,10 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     fig_raw_weights(H, args.scale, out / f"raw_weights_{args.scale}.png")
     fig_delta_pooled(H, args.scale, out / f"delta_pooled_{args.scale}.png")
+    fig_weight_change(H, args.scale, out / f"weight_change_{args.scale}.png")
     fig_delta_by_module(H, S, args.scale, out / f"delta_by_module_{args.scale}.png")
     fig_delta_by_depth(S, args.scale, out / f"delta_by_depth_{args.scale}.png")
-    print(f"wrote 4 figures to {out}/ for {args.scale}")
+    print(f"wrote 5 figures to {out}/ for {args.scale}")
 
 
 if __name__ == "__main__":
