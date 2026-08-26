@@ -267,10 +267,11 @@ it, so that format gain is largely invisible in the reported pass@k, while the
 RL arm never needed it. Under a strict-boxed eval the ES arm would likely look
 *better* relative to RL than it does here.
 
-**The grader version is unrecorded.** `math-verify` reaches the ES reward path
-transitively and unpinned, and versions disagree on real cases: 0.6.0 grades
-`\boxed{50\%}` against `0.5` as correct, 0.9.0 does not. Which version produced
-the published ES results is not recorded anywhere.
+**The grader version is undeclared but recorded.** `math-verify` reaches the ES
+reward path without appearing in `setup.py`, and versions disagree on real
+cases: 0.6.0 grades `\boxed{50\%}` against `0.5` as correct, 0.9.0 does not.
+Every ES arm here ran **0.9.0**, the stricter of the two, captured in each
+training run's requirements.
 
 **What would resolve it.** Re-score the existing completion dumps under ES's
 strict grader and report pass@k both ways.
