@@ -245,6 +245,36 @@ the trained arm winning those is distinguishable from a coin flip. The values
 are multiplied by four, for the four trained-vs-base comparisons. None comes
 near 0.05. 
 
+## The grader confound
+
+The prompt template is shared across this project. The **answer extraction** is
+not — three different rules are in play.
+
+| Stage | Extraction | No `\boxed{}` present |
+|---|---|---|
+| **ES training** (`boxed_reward_fn`) | last `\boxed{}` **only** | **reward 0.0** |
+| **RL training** (SimpleRL-Zoo, `hf_math_verify`) | `\boxed{}` → `the answer is` → `final answer is` → **last number in the string** | scored anyway |
+| **pass@k eval** (`math_eval/parser.py`) | the *same* fallback chain as SimpleRL-Zoo's | scored anyway |
+
+**The RL arm was trained against essentially the rule it is scored with. The ES
+arm was not.** The eval harness and SimpleRL-Zoo both use the Qwen2.5-Math eval
+toolkit parser, so the extraction logic is identical on both sides of the RL
+arm. ES was rewarded only for `\boxed{}`.
+
+**Which way it cuts.** ES was trained to emit `\boxed{}`, and did — emission
+rises from 14.6% to 24.2% under the ES template. The eval awards credit without
+it, so that format gain is largely invisible in the reported pass@k, while the
+RL arm never needed it. Under a strict-boxed eval the ES arm would likely look
+*better* relative to RL than it does here.
+
+**The grader version is unrecorded.** `math-verify` reaches the ES reward path
+transitively and unpinned, and versions disagree on real cases: 0.6.0 grades
+`\boxed{50\%}` against `0.5` as correct, 0.9.0 does not. Which version produced
+the published ES results is not recorded anywhere.
+
+**What would resolve it.** Re-score the existing completion dumps under ES's
+strict grader and report pass@k both ways.
+
 ## Appendix
 
 ### Code
