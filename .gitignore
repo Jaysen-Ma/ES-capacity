@@ -96,6 +96,13 @@ results/*_run.log
 results/gpqa_results/
 results/gpqa/
 
+# MMLU forgetting probe. Same rule as GPQA: the raw lm_eval tree stays out
+# because samples.jsonl embeds the verbatim benchmark questions, ~14,042 of
+# them per arm. Per-subject accuracy is small enough to commit once there is a
+# table worth carrying, but it belongs in docs/ or the README as reduced
+# output, not as a raw dump. Regenerate with scripts/mmlu/run.py.
+results/mmlu_results/
+
 # Weight-movement analysis: histograms, summary CSVs and figures for how far
 # ES and RL post-training moved the parameters. Local-only apart from the two
 # per-parameter weight-change figures the README embeds; the rest regenerates

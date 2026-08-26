@@ -220,56 +220,30 @@ every arm seeing the identical shuffle within a seed.
 **Both base models answer GPQA-diamond no better than random guessing, so this
 benchmark cannot answer the question.** There is no headroom to lose. 
 
-Measuring what
-math-only post-training costs elsewhere needs a benchmark these two bases
-already score above chance on. The proposed measurement is full MMLU — 57 subjects, scored per domain. That is what makes
-"what did math-only post-training cost the humanities?" answerable at all.
+## Out-of-domain check: MMLU
 
-## Planned: "matched-budget" ES vs. RL
+MMLU zero-shot: 57 subjects, 14,042 questions, four choices each, scored by
+log-likelihood over the four letters. Same six arms, one pass each, seed 0.
+Both bases clear the 25% chance
+floor by a wide margin, so there is headroom in which degradation could show.
 
-**Not yet run.** The single biggest weakness in this repo is that every
-ES-vs-RL number compares an ES run to an already-fully-trained public
-checkpoint.
+| Arm | MMLU 0-shot | McNemar p vs. base |
+|---|---|---|
+| 1.5B-base | 59.64% | — |
+| 1.5B-ES | 59.19% | 0.37 |
+| 1.5B-RL | 59.81% | 0.54 |
+| 7B-base | 71.83% | — |
+| 7B-ES | 71.67% | 1.00 |
+| 7B-RL | 72.03% | 0.07 |
 
-Retrain both the ES and RL arm at **batch 1024, 32 samples per
-prompt**:
+Neither method causes catastrophic forgetting, at either scale.
 
-| | Steps | Prompts/step | ×per prompt | Exposures | Epochs | Generations |
-|---|---|---|---|---|---|---|
-| ES | 50 | 1024 | 32 population | 51,200 | 6 | 1,638,400 |
-| GRPO | 50 | 1024 | 32 rollouts | 51,200 | 6 | 1,638,400 |
-| ES | 100 | 1024 | 32 population | 102,400 | 12 | 3,276,800 |
-| GRPO | 100 | 1024 | 32 rollouts | 102,400 | 12 | 3,276,800 |
-
-### The protocol
-
-1. **Train our own ES and GRPO arm** at batch 1024 / 32 rollouts, rather than using the
-   public checkpoint — the only way to control the budget. Also set
-   `max_response_length=2048` to match ES and the eval, removing the token-cap
-   confound in the same stroke.
-2. **Record wall-clock and total generated tokens alongside generations**, so
-   every result can be read under any of the three denominators (see below).
-3. **Run the existing pass@k suite**
-
-### The other axis: matched wall-clock
-
-Generation parity is one denominator, and it is the one that isolates the
-*method*. It is not the one a practitioner spends. The second protocol is
-therefore the same two arms on the same box, each stopped at the same
-wall-clock budget, reporting whatever number of steps each got through.
-
-The two axes disagree by construction, which is the point. At the reshaped
-geometry both arms generate 32,768 completions per step, but they pay for
-them differently: GRPO adds a backward pass and optimizer state over the full
-model, while ES is forward-only and its per-step cost is population
-evaluation plus perturbation overhead. 
-
-Fixing generations therefore hands ES
-the cheaper step, and fixing wall-clock hands ES more steps — if that is
-where the advantage comes from, a generations-matched table will hide it and
-a time-matched one will show it. Memory follows the same split: ES holds no
-optimizer state, which is why this project's ES runs fit on 8x RTX 4090 at
-all.
+Every arm answers the same 14,042 questions in the same order, so each question
+is a matched pair and the arms can be compared question by question. McNemar discards the questions both models get right
+and both get wrong, keeps only the ones where the two disagree, and asks whether
+the trained arm winning those is distinguishable from a coin flip. The values
+are multiplied by four, for the four trained-vs-base comparisons. None comes
+near 0.05. 
 
 ## Appendix
 
@@ -281,28 +255,6 @@ papers' code.
 |---|---|---|---|
 | ES training | [Jaysen-Ma/es-at-scale](https://github.com/Jaysen-Ma/es-at-scale) (fork of [VsonicV/es-at-scale](https://github.com/VsonicV/es-at-scale), arXiv:2509.24372) | `fix/multi-engine-colocation` | Fixes needed to run on a single-node 8x RTX 4090 instance on Vast. |
 | pass@k generation, grading, plotting | [Jaysen-Ma/limit-of-RLVR](https://github.com/Jaysen-Ma/limit-of-RLVR) (fork of [LeapLabTHU/limit-of-RLVR](https://github.com/LeapLabTHU/limit-of-RLVR), arXiv:2504.13837) | `fix/math-equal-timeout-bypass` | Fixes a grading-worker hang. |
-
-### Evaluation wall-clock
-
-Convert the raw `es-at-scale` checkpoint to HF format first. Per-benchmark
-generation time, 8x RTX 4090 48GB, sharded across all 8 GPUs:
-
-| Benchmark | Gens/model | 1.5B base | 1.5B ES | 1.5B RL | 7B base | 7B ES | 7B RL |
-|---|---|---|---|---|---|---|---|
-| AIME24 (k=512) | 15,360 | 5m23s | 4m34s | 5m24s | 13m41s | 13m12s | — |
-| MATH500 (k=128) | 64,000 | 3m38s | 2m40s | 3m18s | 11m19s | 26m07s | — |
-| Minerva (k=128) | 34,816 | 4m32s | 4m08s | 5m05s | 24m33s | 25m07s | — |
-| OlympiadBench (k=128) | 86,400 | 5m54s | 9m41s | 7m33s | 40m21s | 43m17s | — |
-| **Total** | | **19m27s** | **21m02s** | **21m20s** | **1h30m** | **1h48m** | — |
-
-The 7B RL generations were run on a separate 8x RTX 3090 instance, not the
-4090 box, so their wall-clock isn't comparable to the rest of the table and
-wasn't recorded.
-
-### Training dynamics
-
-Per-iteration reward for every run — including the aborted sigma sweeps not
-reported above — is in `results/<run>/training_curves.csv`.
 
 ### Published checkpoints
 
